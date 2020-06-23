@@ -12,6 +12,7 @@ import (
 
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/lock"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/pack"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -79,7 +80,7 @@ type Pack struct {
 type Blob struct {
 	Type   restic.BlobType `json:"type"`
 	Length uint            `json:"length"`
-	ID     id.ID       `json:"id"`
+	ID     rid.ID       `json:"id"`
 	Offset uint            `json:"offset"`
 }
 
