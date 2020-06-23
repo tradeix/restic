@@ -8,12 +8,13 @@ import (
 	"os/user"
 	"time"
 
-	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
-
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/restic"
 )
 
 var (
@@ -116,7 +117,7 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 	checked := 0
 
 	if len(keyHint) > 0 {
-		id, err := restic.Find(s.Backend(), restic.KeyFile, keyHint)
+		id, err := restic.Find(s.Backend(), file.KeyFile, keyHint)
 
 		if err == nil {
 			key, err := OpenKey(ctx, s, id, password)
@@ -136,12 +137,12 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 	defer cancel()
 
 	// try at most maxKeys keys in repo
-	err = s.Backend().List(listCtx, restic.KeyFile, func(fi restic.FileInfo) error {
+	err = s.Backend().List(listCtx, file.KeyFile, func(fi restic.FileInfo) error {
 		if maxKeys > 0 && checked > maxKeys {
 			return ErrMaxKeysReached
 		}
 
-		_, err := restic.ParseID(fi.Name)
+		_, err := rid.ParseID(fi.Name)
 		if err != nil {
 			debug.Log("rejecting key with invalid name: %v", fi.Name)
 			return nil
@@ -183,7 +184,7 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 
 // LoadKey loads a key from the backend.
 func LoadKey(ctx context.Context, s *Repository, name string) (k *Key, err error) {
-	h := restic.Handle{Type: restic.KeyFile, Name: name}
+	h := file.Handle{Type: file.KeyFile, Name: name}
 	data, err := backend.LoadAll(ctx, nil, s.be, h)
 	if err != nil {
 		return nil, err
@@ -269,9 +270,9 @@ func AddKey(ctx context.Context, s *Repository, password string, template *crypt
 	}
 
 	// store in repository and return
-	h := restic.Handle{
-		Type: restic.KeyFile,
-		Name: restic.Hash(buf).String(),
+	h := file.Handle{
+		Type: file.KeyFile,
+		Name: rid.Hash(buf).String(),
 	}
 
 	err = s.be.Save(ctx, h, restic.NewByteReader(buf))

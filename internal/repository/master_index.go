@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 	"sync"
-
-	"github.com/restic/restic/internal/restic"
-
+	
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/restic"
 )
 
 // MasterIndex is a collection of indexes and IDs of chunks that are in the process of being saved.
@@ -22,7 +22,7 @@ func NewMasterIndex() *MasterIndex {
 }
 
 // Lookup queries all known Indexes for the ID and returns the first match.
-func (mi *MasterIndex) Lookup(id restic.ID, tpe restic.BlobType) (blobs []restic.PackedBlob, found bool) {
+func (mi *MasterIndex) Lookup(id id.ID, tpe restic.BlobType) (blobs []restic.PackedBlob, found bool) {
 	mi.idxMutex.RLock()
 	defer mi.idxMutex.RUnlock()
 
@@ -37,7 +37,7 @@ func (mi *MasterIndex) Lookup(id restic.ID, tpe restic.BlobType) (blobs []restic
 }
 
 // LookupSize queries all known Indexes for the ID and returns the first match.
-func (mi *MasterIndex) LookupSize(id restic.ID, tpe restic.BlobType) (uint, bool) {
+func (mi *MasterIndex) LookupSize(id id.ID, tpe restic.BlobType) (uint, bool) {
 	mi.idxMutex.RLock()
 	defer mi.idxMutex.RUnlock()
 
@@ -52,7 +52,7 @@ func (mi *MasterIndex) LookupSize(id restic.ID, tpe restic.BlobType) (uint, bool
 
 // ListPack returns the list of blobs in a pack. The first matching index is
 // returned, or nil if no index contains information about the pack id.
-func (mi *MasterIndex) ListPack(id restic.ID) (list []restic.PackedBlob) {
+func (mi *MasterIndex) ListPack(id id.ID) (list []restic.PackedBlob) {
 	mi.idxMutex.RLock()
 	defer mi.idxMutex.RUnlock()
 
@@ -70,7 +70,7 @@ func (mi *MasterIndex) ListPack(id restic.ID) (list []restic.PackedBlob) {
 // Before doing so it checks if this blob is already known.
 // Returns true if adding was successful and false if the blob
 // was already known
-func (mi *MasterIndex) addPending(id restic.ID, tpe restic.BlobType) bool {
+func (mi *MasterIndex) addPending(id id.ID, tpe restic.BlobType) bool {
 
 	mi.idxMutex.Lock()
 	defer mi.idxMutex.Unlock()
@@ -93,7 +93,7 @@ func (mi *MasterIndex) addPending(id restic.ID, tpe restic.BlobType) bool {
 
 // Has queries all known Indexes for the ID and returns the first match.
 // Also returns true if the ID is pending.
-func (mi *MasterIndex) Has(id restic.ID, tpe restic.BlobType) bool {
+func (mi *MasterIndex) Has(id id.ID, tpe restic.BlobType) bool {
 	mi.idxMutex.RLock()
 	defer mi.idxMutex.RUnlock()
 
@@ -133,7 +133,7 @@ func (mi *MasterIndex) Insert(idx *Index) {
 }
 
 // Store remembers the id and pack in the index.
-func (mi *MasterIndex) StorePack(id restic.ID, blobs []restic.Blob) {
+func (mi *MasterIndex) StorePack(id id.ID, blobs []restic.Blob) {
 	mi.idxMutex.Lock()
 	defer mi.idxMutex.Unlock()
 
@@ -240,7 +240,7 @@ func (mi *MasterIndex) Each(ctx context.Context) <-chan restic.PackedBlob {
 // RebuildIndex combines all known indexes to a new index, leaving out any
 // packs whose ID is contained in packBlacklist. The new index contains the IDs
 // of all known indexes in the "supersedes" field.
-func (mi *MasterIndex) RebuildIndex(packBlacklist restic.IDSet) (*Index, error) {
+func (mi *MasterIndex) RebuildIndex(packBlacklist id.IDSet) (*Index, error) {
 	mi.idxMutex.Lock()
 	defer mi.idxMutex.Unlock()
 

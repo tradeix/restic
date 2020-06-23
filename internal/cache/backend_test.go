@@ -16,7 +16,7 @@ import (
 	"github.com/restic/restic/internal/test"
 )
 
-func loadAndCompare(t testing.TB, be restic.Backend, h restic.Handle, data []byte) {
+func loadAndCompare(t testing.TB, be restic.Backend, h file.Handle, data []byte) {
 	buf, err := backend.LoadAll(context.TODO(), nil, be, h)
 	if err != nil {
 		t.Fatal(err)
@@ -31,26 +31,26 @@ func loadAndCompare(t testing.TB, be restic.Backend, h restic.Handle, data []byt
 	}
 }
 
-func save(t testing.TB, be restic.Backend, h restic.Handle, data []byte) {
+func save(t testing.TB, be restic.Backend, h file.Handle, data []byte) {
 	err := be.Save(context.TODO(), h, restic.NewByteReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func remove(t testing.TB, be restic.Backend, h restic.Handle) {
+func remove(t testing.TB, be restic.Backend, h file.Handle) {
 	err := be.Remove(context.TODO(), h)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func randomData(n int) (restic.Handle, []byte) {
+func randomData(n int) (file.Handle, []byte) {
 	data := test.Random(rand.Int(), n)
-	id := restic.Hash(data)
+	id := id.Hash(data)
 	copy(id[:], data)
-	h := restic.Handle{
-		Type: restic.IndexFile,
+	h := file.Handle{
+		Type: file.IndexFile,
 		Name: id.String(),
 	}
 	return h, data
@@ -122,7 +122,7 @@ type loadErrorBackend struct {
 	loadError error
 }
 
-func (be loadErrorBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be loadErrorBackend) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	time.Sleep(10 * time.Millisecond)
 	return be.loadError
 }

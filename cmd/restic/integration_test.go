@@ -28,8 +28,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func parseIDsFromReader(t testing.TB, rd io.Reader) restic.IDs {
-	IDs := restic.IDs{}
+func parseIDsFromReader(t testing.TB, rd io.Reader) id.IDs {
+	IDs := id.IDs{}
 	sc := bufio.NewScanner(rd)
 
 	for sc.Scan() {
@@ -79,7 +79,7 @@ func testRunBackup(t testing.TB, dir string, target []string, opts BackupOptions
 	}
 }
 
-func testRunList(t testing.TB, tpe string, opts GlobalOptions) restic.IDs {
+func testRunList(t testing.TB, tpe string, opts GlobalOptions) id.IDs {
 	buf := bytes.NewBuffer(nil)
 	globalOptions.stdout = buf
 	defer func() {
@@ -90,7 +90,7 @@ func testRunList(t testing.TB, tpe string, opts GlobalOptions) restic.IDs {
 	return parseIDsFromReader(t, buf)
 }
 
-func testRunRestore(t testing.TB, opts GlobalOptions, dir string, snapshotID restic.ID) {
+func testRunRestore(t testing.TB, opts GlobalOptions, dir string, snapshotID id.ID) {
 	testRunRestoreExcludes(t, opts, dir, snapshotID, nil)
 }
 
@@ -104,7 +104,7 @@ func testRunRestoreLatest(t testing.TB, gopts GlobalOptions, dir string, paths [
 	rtest.OK(t, runRestore(opts, gopts, []string{"latest"}))
 }
 
-func testRunRestoreExcludes(t testing.TB, gopts GlobalOptions, dir string, snapshotID restic.ID, excludes []string) {
+func testRunRestoreExcludes(t testing.TB, gopts GlobalOptions, dir string, snapshotID id.ID, excludes []string) {
 	opts := RestoreOptions{
 		Target:  dir,
 		Exclude: excludes,
@@ -113,7 +113,7 @@ func testRunRestoreExcludes(t testing.TB, gopts GlobalOptions, dir string, snaps
 	rtest.OK(t, runRestore(opts, gopts, []string{snapshotID.String()}))
 }
 
-func testRunRestoreIncludes(t testing.TB, gopts GlobalOptions, dir string, snapshotID restic.ID, includes []string) {
+func testRunRestoreIncludes(t testing.TB, gopts GlobalOptions, dir string, snapshotID id.ID, includes []string) {
 	opts := RestoreOptions{
 		Target:  dir,
 		Include: includes,
@@ -188,7 +188,7 @@ func testRunFind(t testing.TB, wantJSON bool, gopts GlobalOptions, pattern strin
 	return buf.Bytes()
 }
 
-func testRunSnapshots(t testing.TB, gopts GlobalOptions) (newest *Snapshot, snapmap map[restic.ID]Snapshot) {
+func testRunSnapshots(t testing.TB, gopts GlobalOptions) (newest *Snapshot, snapmap map[id.ID]Snapshot) {
 	buf := bytes.NewBuffer(nil)
 	globalOptions.stdout = buf
 	globalOptions.JSON = true
@@ -204,7 +204,7 @@ func testRunSnapshots(t testing.TB, gopts GlobalOptions) (newest *Snapshot, snap
 	snapshots := []Snapshot{}
 	rtest.OK(t, json.Unmarshal(buf.Bytes(), &snapshots))
 
-	snapmap = make(map[restic.ID]Snapshot, len(snapshots))
+	snapmap = make(map[id.ID]Snapshot, len(snapshots))
 	for _, sn := range snapshots {
 		snapmap[*sn.ID] = sn
 		if newest == nil || sn.Time.After(newest.Time) {

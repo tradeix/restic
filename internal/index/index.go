@@ -9,6 +9,8 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/pack"
 	"github.com/restic/restic/internal/restic"
 	"golang.org/x/sync/errgroup"
@@ -16,21 +18,21 @@ import (
 
 // Pack contains information about the contents of a pack.
 type Pack struct {
-	ID      restic.ID
+	ID      rid.ID
 	Size    int64
 	Entries []restic.Blob
 }
 
 // Index contains information about blobs and packs stored in a repo.
 type Index struct {
-	Packs    map[restic.ID]Pack
-	IndexIDs restic.IDSet
+	Packs    map[rid.ID]Pack
+	IndexIDs rid.IDSet
 }
 
 func newIndex() *Index {
 	return &Index{
-		Packs:    make(map[restic.ID]Pack),
-		IndexIDs: restic.NewIDSet(),
+		Packs:    make(map[rid.ID]Pack),
+		IndexIDs: rid.NewIDSet(),
 	}
 }
 
@@ -39,27 +41,27 @@ const listPackWorkers = 10
 // Lister lists files and their contents
 type Lister interface {
 	// List runs fn for all files of type t in the repo.
-	List(ctx context.Context, t restic.FileType, fn func(restic.ID, int64) error) error
+	List(ctx context.Context, t file.FileType, fn func(rid.ID, int64) error) error
 
 	// ListPack returns the list of blobs saved in the pack id and the length
 	// of the file as stored in the backend.
-	ListPack(ctx context.Context, id restic.ID, size int64) ([]restic.Blob, int64, error)
+	ListPack(ctx context.Context, id rid.ID, size int64) ([]restic.Blob, int64, error)
 }
 
 // New creates a new index for repo from scratch. InvalidFiles contains all IDs
 // of files  that cannot be listed successfully.
-func New(ctx context.Context, repo Lister, ignorePacks restic.IDSet, p *restic.Progress) (idx *Index, invalidFiles restic.IDs, err error) {
+func New(ctx context.Context, repo Lister, ignorePacks rid.IDSet, p *restic.Progress) (idx *Index, invalidFiles rid.IDs, err error) {
 	p.Start()
 	defer p.Done()
 
 	type Job struct {
-		PackID restic.ID
+		PackID rid.ID
 		Size   int64
 	}
 
 	type Result struct {
 		Error   error
-		PackID  restic.ID
+		PackID  rid.ID
 		Size    int64
 		Entries []restic.Blob
 	}
@@ -71,7 +73,7 @@ func New(ctx context.Context, repo Lister, ignorePacks restic.IDSet, p *restic.P
 	// list the files in the repo, send to inputCh
 	wg.Go(func() error {
 		defer close(inputCh)
-		return repo.List(ctx, restic.DataFile, func(id restic.ID, size int64) error {
+		return repo.List(ctx, file.DataFile, func(id rid.ID, size int64) error {
 			if ignorePacks.Has(id) {
 				return nil
 			}
@@ -152,33 +154,33 @@ func New(ctx context.Context, repo Lister, ignorePacks restic.IDSet, p *restic.P
 }
 
 type packJSON struct {
-	ID    restic.ID  `json:"id"`
+	ID    rid.ID  `json:"id"`
 	Blobs []blobJSON `json:"blobs"`
 }
 
 type blobJSON struct {
-	ID     restic.ID       `json:"id"`
+	ID     rid.ID       `json:"id"`
 	Type   restic.BlobType `json:"type"`
 	Offset uint            `json:"offset"`
 	Length uint            `json:"length"`
 }
 
 type indexJSON struct {
-	Supersedes restic.IDs `json:"supersedes,omitempty"`
+	Supersedes rid.IDs `json:"supersedes,omitempty"`
 	Packs      []packJSON `json:"packs"`
 }
 
 // ListLoader allows listing files and their content, in addition to loading and unmarshaling JSON files.
 type ListLoader interface {
 	Lister
-	LoadJSONUnpacked(context.Context, restic.FileType, restic.ID, interface{}) error
+	LoadJSONUnpacked(context.Context, file.FileType, rid.ID, interface{}) error
 }
 
-func loadIndexJSON(ctx context.Context, repo ListLoader, id restic.ID) (*indexJSON, error) {
+func loadIndexJSON(ctx context.Context, repo ListLoader, id rid.ID) (*indexJSON, error) {
 	debug.Log("process index %v\n", id)
 
 	var idx indexJSON
-	err := repo.LoadJSONUnpacked(ctx, restic.IndexFile, id, &idx)
+	err := repo.LoadJSONUnpacked(ctx, file.IndexFile, id, &idx)
 	if err != nil {
 		return nil, err
 	}
@@ -193,12 +195,12 @@ func Load(ctx context.Context, repo ListLoader, p *restic.Progress) (*Index, err
 	p.Start()
 	defer p.Done()
 
-	supersedes := make(map[restic.ID]restic.IDSet)
-	results := make(map[restic.ID]map[restic.ID]Pack)
+	supersedes := make(map[rid.ID]rid.IDSet)
+	results := make(map[rid.ID]map[rid.ID]Pack)
 
 	index := newIndex()
 
-	err := repo.List(ctx, restic.IndexFile, func(id restic.ID, size int64) error {
+	err := repo.List(ctx, file.IndexFile, func(id rid.ID, size int64) error {
 		p.Report(restic.Stat{Blobs: 1})
 
 		debug.Log("Load index %v", id)
@@ -207,8 +209,8 @@ func Load(ctx context.Context, repo ListLoader, p *restic.Progress) (*Index, err
 			return err
 		}
 
-		res := make(map[restic.ID]Pack)
-		supersedes[id] = restic.NewIDSet()
+		res := make(map[rid.ID]Pack)
+		supersedes[id] = rid.NewIDSet()
 		for _, sid := range idx.Supersedes {
 			debug.Log("  index %v supersedes %v", id, sid)
 			supersedes[id].Insert(sid)
@@ -257,7 +259,7 @@ func Load(ctx context.Context, repo ListLoader, p *restic.Progress) (*Index, err
 
 // AddPack adds a pack to the index. If this pack is already in the index, an
 // error is returned.
-func (idx *Index) AddPack(id restic.ID, size int64, entries []restic.Blob) error {
+func (idx *Index) AddPack(id rid.ID, size int64, entries []restic.Blob) error {
 	if _, ok := idx.Packs[id]; ok {
 		return errors.Errorf("pack %v already present in the index", id.Str())
 	}
@@ -268,7 +270,7 @@ func (idx *Index) AddPack(id restic.ID, size int64, entries []restic.Blob) error
 }
 
 // RemovePack deletes a pack from the index.
-func (idx *Index) RemovePack(id restic.ID) error {
+func (idx *Index) RemovePack(id rid.ID) error {
 	if _, ok := idx.Packs[id]; !ok {
 		return errors.Errorf("pack %v not found in the index", id.Str())
 	}
@@ -298,8 +300,8 @@ func (idx *Index) DuplicateBlobs() (dups restic.BlobSet) {
 }
 
 // PacksForBlobs returns the set of packs in which the blobs are contained.
-func (idx *Index) PacksForBlobs(blobs restic.BlobSet) (packs restic.IDSet) {
-	packs = restic.NewIDSet()
+func (idx *Index) PacksForBlobs(blobs restic.BlobSet) (packs rid.IDSet) {
+	packs = rid.NewIDSet()
 
 	for id, p := range idx.Packs {
 		for _, entry := range p.Entries {
@@ -316,14 +318,14 @@ const maxEntries = 3000
 
 // Saver saves structures as JSON.
 type Saver interface {
-	SaveJSONUnpacked(ctx context.Context, t restic.FileType, item interface{}) (restic.ID, error)
+	SaveJSONUnpacked(ctx context.Context, t file.FileType, item interface{}) (rid.ID, error)
 }
 
 // Save writes the complete index to the repo.
-func (idx *Index) Save(ctx context.Context, repo Saver, supersedes restic.IDs) (restic.IDs, error) {
+func (idx *Index) Save(ctx context.Context, repo Saver, supersedes rid.IDs) (rid.IDs, error) {
 	debug.Log("pack files: %d\n", len(idx.Packs))
 
-	var indexIDs []restic.ID
+	var indexIDs []rid.ID
 
 	packs := 0
 	jsonIDX := &indexJSON{
@@ -352,7 +354,7 @@ func (idx *Index) Save(ctx context.Context, repo Saver, supersedes restic.IDs) (
 
 		packs++
 		if packs == maxEntries {
-			id, err := repo.SaveJSONUnpacked(ctx, restic.IndexFile, jsonIDX)
+			id, err := repo.SaveJSONUnpacked(ctx, file.IndexFile, jsonIDX)
 			if err != nil {
 				return nil, err
 			}
@@ -365,7 +367,7 @@ func (idx *Index) Save(ctx context.Context, repo Saver, supersedes restic.IDs) (
 	}
 
 	if packs > 0 {
-		id, err := repo.SaveJSONUnpacked(ctx, restic.IndexFile, jsonIDX)
+		id, err := repo.SaveJSONUnpacked(ctx, file.IndexFile, jsonIDX)
 		if err != nil {
 			return nil, err
 		}

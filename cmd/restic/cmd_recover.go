@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 	"github.com/spf13/cobra"
 )
@@ -43,8 +46,8 @@ func runRecover(gopts GlobalOptions) error {
 		return err
 	}
 
-	lock, err := lockRepo(repo)
-	defer unlockRepo(lock)
+	lck, err := lock.LockRepo(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}
@@ -56,7 +59,7 @@ func runRecover(gopts GlobalOptions) error {
 
 	// trees maps a tree ID to whether or not it is referenced by a different
 	// tree. If it is not referenced, we have a root tree.
-	trees := make(map[restic.ID]bool)
+	trees := make(map[rid.ID]bool)
 
 	for blob := range repo.Index().Each(gopts.ctx) {
 		if blob.Blob.Type != restic.TreeBlob {
@@ -94,7 +97,7 @@ func runRecover(gopts GlobalOptions) error {
 	}
 	Verbosef("\ndone\n")
 
-	roots := restic.NewIDSet()
+	roots := rid.NewIDSet()
 	for id, seen := range trees {
 		if seen {
 			continue
@@ -137,7 +140,7 @@ func runRecover(gopts GlobalOptions) error {
 
 	sn.Tree = &treeID
 
-	id, err := repo.SaveJSONUnpacked(gopts.ctx, restic.SnapshotFile, sn)
+	id, err := repo.SaveJSONUnpacked(gopts.ctx, file.SnapshotFile, sn)
 	if err != nil {
 		return errors.Fatalf("unable to save snapshot: %v", err)
 	}

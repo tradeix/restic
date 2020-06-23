@@ -16,13 +16,13 @@ type TestTree map[string]interface{}
 // TestNode is used to test the walker.
 type TestFile struct{}
 
-func BuildTreeMap(tree TestTree) (m TreeMap, root restic.ID) {
+func BuildTreeMap(tree TestTree) (m TreeMap, root id.ID) {
 	m = TreeMap{}
 	id := buildTreeMap(tree, m)
 	return m, id
 }
 
-func buildTreeMap(tree TestTree, m TreeMap) restic.ID {
+func buildTreeMap(tree TestTree, m TreeMap) id.ID {
 	res := restic.NewTree()
 
 	for name, item := range tree {
@@ -49,7 +49,7 @@ func buildTreeMap(tree TestTree, m TreeMap) restic.ID {
 		panic(err)
 	}
 
-	id := restic.Hash(buf)
+	id := id.Hash(buf)
 
 	if _, ok := m[id]; !ok {
 		m[id] = res
@@ -59,9 +59,9 @@ func buildTreeMap(tree TestTree, m TreeMap) restic.ID {
 }
 
 // TreeMap returns the trees from the map on LoadTree.
-type TreeMap map[restic.ID]*restic.Tree
+type TreeMap map[id.ID]*restic.Tree
 
-func (t TreeMap) LoadTree(ctx context.Context, id restic.ID) (*restic.Tree, error) {
+func (t TreeMap) LoadTree(ctx context.Context, id id.ID) (*restic.Tree, error) {
 	tree, ok := t[id]
 	if !ok {
 		return nil, errors.New("tree not found")
@@ -78,7 +78,7 @@ type checkFunc func(t testing.TB) (walker WalkFunc, final func(testing.TB))
 func checkItemOrder(want []string) checkFunc {
 	pos := 0
 	return func(t testing.TB) (walker WalkFunc, final func(testing.TB)) {
-		walker = func(treeID restic.ID, path string, node *restic.Node, err error) (bool, error) {
+		walker = func(treeID id.ID, path string, node *restic.Node, err error) (bool, error) {
 			if err != nil {
 				t.Errorf("error walking %v: %v", path, err)
 				return false, err
@@ -110,7 +110,7 @@ func checkItemOrder(want []string) checkFunc {
 func checkParentTreeOrder(want []string) checkFunc {
 	pos := 0
 	return func(t testing.TB) (walker WalkFunc, final func(testing.TB)) {
-		walker = func(treeID restic.ID, path string, node *restic.Node, err error) (bool, error) {
+		walker = func(treeID id.ID, path string, node *restic.Node, err error) (bool, error) {
 			if err != nil {
 				t.Errorf("error walking %v: %v", path, err)
 				return false, err
@@ -144,7 +144,7 @@ func checkSkipFor(skipFor map[string]struct{}, wantPaths []string) checkFunc {
 	var pos int
 
 	return func(t testing.TB) (walker WalkFunc, final func(testing.TB)) {
-		walker = func(treeID restic.ID, path string, node *restic.Node, err error) (bool, error) {
+		walker = func(treeID id.ID, path string, node *restic.Node, err error) (bool, error) {
 			if err != nil {
 				t.Errorf("error walking %v: %v", path, err)
 				return false, err
@@ -184,7 +184,7 @@ func checkIgnore(skipFor map[string]struct{}, ignoreFor map[string]bool, wantPat
 	var pos int
 
 	return func(t testing.TB) (walker WalkFunc, final func(testing.TB)) {
-		walker = func(treeID restic.ID, path string, node *restic.Node, err error) (bool, error) {
+		walker = func(treeID id.ID, path string, node *restic.Node, err error) (bool, error) {
 			if err != nil {
 				t.Errorf("error walking %v: %v", path, err)
 				return false, err
@@ -532,7 +532,7 @@ func TestWalker(t *testing.T) {
 					defer cancel()
 
 					fn, last := check(t)
-					err := Walk(ctx, repo, root, restic.NewIDSet(), fn)
+					err := Walk(ctx, repo, root, id.NewIDSet(), fn)
 					if err != nil {
 						t.Error(err)
 					}

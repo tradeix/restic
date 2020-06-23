@@ -1,23 +1,22 @@
 package restic
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/user"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/restic/restic/internal/errors"
-
-	"bytes"
-	"runtime"
-
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
+	"github.com/restic/restic/internal/id"
 )
 
 // ExtendedAttribute is a tuple storing the xattr name and value.
@@ -45,8 +44,8 @@ type Node struct {
 	LinkTarget         string              `json:"linktarget,omitempty"`
 	ExtendedAttributes []ExtendedAttribute `json:"extended_attributes,omitempty"`
 	Device             uint64              `json:"device,omitempty"` // in case of Type == "dev", stat.st_rdev
-	Content            IDs                 `json:"content"`
-	Subtree            *ID                 `json:"subtree,omitempty"`
+	Content            id.IDs                 `json:"content"`
+	Subtree            *id.ID                 `json:"subtree,omitempty"`
 
 	Error string `json:"error,omitempty"`
 

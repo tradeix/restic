@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/id"
 )
 
 // ErrNoIDPrefixFound is returned by Find() when no ID for the given prefix
@@ -17,7 +19,7 @@ var ErrMultipleIDMatches = errors.New("multiple IDs with prefix found")
 // Find loads the list of all files of type t and searches for names which
 // start with prefix. If none is found, nil and ErrNoIDPrefixFound is returned.
 // If more than one is found, nil and ErrMultipleIDMatches is returned.
-func Find(be Lister, t FileType, prefix string) (string, error) {
+func Find(be Lister, t file.FileType, prefix string) (string, error) {
 	match := ""
 
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -50,7 +52,7 @@ const minPrefixLength = 8
 
 // PrefixLength returns the number of bytes required so that all prefixes of
 // all names of type t are unique.
-func PrefixLength(be Lister, t FileType) (int, error) {
+func PrefixLength(be Lister, t file.FileType) (int, error) {
 	// load all IDs of the given type
 	list := make([]string, 0, 100)
 
@@ -67,7 +69,7 @@ func PrefixLength(be Lister, t FileType) (int, error) {
 	}
 
 	// select prefixes of length l, test if the last one is the same as the current one
-	id := ID{}
+	id := id.ID{}
 outer:
 	for l := minPrefixLength; l < len(id); l++ {
 		var last string

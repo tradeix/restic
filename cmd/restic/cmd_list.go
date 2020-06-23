@@ -2,8 +2,10 @@ package main
 
 import (
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/repository"
-	"github.com/restic/restic/internal/restic"
 
 	"github.com/spf13/cobra"
 )
@@ -40,27 +42,27 @@ func runList(cmd *cobra.Command, opts GlobalOptions, args []string) error {
 	}
 
 	if !opts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
 	}
 
-	var t restic.FileType
+	var t file.FileType
 	switch args[0] {
 	case "packs":
-		t = restic.DataFile
+		t = file.DataFile
 	case "index":
-		t = restic.IndexFile
+		t = file.IndexFile
 	case "snapshots":
-		t = restic.SnapshotFile
+		t = file.SnapshotFile
 	case "keys":
-		t = restic.KeyFile
+		t = file.KeyFile
 	case "locks":
-		t = restic.LockFile
+		t = file.LockFile
 	case "blobs":
-		return repo.List(opts.ctx, restic.IndexFile, func(id restic.ID, size int64) error {
+		return repo.List(opts.ctx, file.IndexFile, func(id rid.ID, size int64) error {
 			idx, err := repository.LoadIndex(opts.ctx, repo, id)
 			if err != nil {
 				return err
@@ -76,7 +78,7 @@ func runList(cmd *cobra.Command, opts GlobalOptions, args []string) error {
 		return errors.Fatal("invalid type")
 	}
 
-	return repo.List(opts.ctx, t, func(id restic.ID, size int64) error {
+	return repo.List(opts.ctx, t, func(id rid.ID, size int64) error {
 		Printf("%s\n", id)
 		return nil
 	})

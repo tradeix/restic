@@ -12,12 +12,12 @@ import (
 	"strings"
 
 	"golang.org/x/net/context/ctxhttp"
-
+	
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/restic"
-
-	"github.com/restic/restic/internal/backend"
 )
 
 // make sure the rest backend implements restic.Backend
@@ -69,7 +69,7 @@ func Create(cfg Config, rt http.RoundTripper) (*Backend, error) {
 		return nil, err
 	}
 
-	_, err = be.Stat(context.TODO(), restic.Handle{Type: restic.ConfigFile})
+	_, err = be.Stat(context.TODO(), file.Handle{Type: file.ConfigFile})
 	if err == nil {
 		return nil, errors.Fatal("config file already exists")
 	}
@@ -107,7 +107,7 @@ func (b *Backend) Location() string {
 }
 
 // Save stores data in the backend at the handle.
-func (b *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (b *Backend) Save(ctx context.Context, h file.Handle, rd restic.RewindReader) error {
 	if err := h.Valid(); err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func (b *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindRea
 // ErrIsNotExist is returned whenever the requested file does not exist on the
 // server.
 type ErrIsNotExist struct {
-	restic.Handle
+	file.Handle
 }
 
 func (e ErrIsNotExist) Error() string {
@@ -172,11 +172,11 @@ func (b *Backend) IsNotExist(err error) bool {
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (b *Backend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (b *Backend) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return backend.DefaultLoad(ctx, h, length, offset, b.openReader, fn)
 }
 
-func (b *Backend) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (b *Backend) openReader(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load %v, length %v, offset %v", h, length, offset)
 	if err := h.Valid(); err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func (b *Backend) openReader(ctx context.Context, h restic.Handle, length int, o
 }
 
 // Stat returns information about a blob.
-func (b *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, error) {
+func (b *Backend) Stat(ctx context.Context, h file.Handle) (restic.FileInfo, error) {
 	if err := h.Valid(); err != nil {
 		return restic.FileInfo{}, err
 	}
@@ -274,7 +274,7 @@ func (b *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, e
 }
 
 // Test returns true if a blob of the given type and name exists in the backend.
-func (b *Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (b *Backend) Test(ctx context.Context, h file.Handle) (bool, error) {
 	_, err := b.Stat(ctx, h)
 	if err != nil {
 		return false, nil
@@ -284,7 +284,7 @@ func (b *Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
 }
 
 // Remove removes the blob with the given name and type.
-func (b *Backend) Remove(ctx context.Context, h restic.Handle) error {
+func (b *Backend) Remove(ctx context.Context, h file.Handle) error {
 	if err := h.Valid(); err != nil {
 		return err
 	}
@@ -322,8 +322,8 @@ func (b *Backend) Remove(ctx context.Context, h restic.Handle) error {
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
-func (b *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
-	url := b.Dirname(restic.Handle{Type: t})
+func (b *Backend) List(ctx context.Context, t file.FileType, fn func(restic.FileInfo) error) error {
+	url := b.Dirname(file.Handle{Type: t})
 	if !strings.HasSuffix(url, "/") {
 		url += "/"
 	}
@@ -356,7 +356,7 @@ func (b *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.Fi
 // listv1 uses the REST protocol v1, where a list HTTP request (e.g. `GET
 // /data/`) only returns the names of the files, so we need to issue an HTTP
 // HEAD request for each file.
-func (b *Backend) listv1(ctx context.Context, t restic.FileType, resp *http.Response, fn func(restic.FileInfo) error) error {
+func (b *Backend) listv1(ctx context.Context, t file.FileType, resp *http.Response, fn func(restic.FileInfo) error) error {
 	debug.Log("parsing API v1 response")
 	dec := json.NewDecoder(resp.Body)
 	var list []string
@@ -365,7 +365,7 @@ func (b *Backend) listv1(ctx context.Context, t restic.FileType, resp *http.Resp
 	}
 
 	for _, m := range list {
-		fi, err := b.Stat(ctx, restic.Handle{Name: m, Type: t})
+		fi, err := b.Stat(ctx, file.Handle{Name: m, Type: t})
 		if err != nil {
 			return err
 		}
@@ -390,7 +390,7 @@ func (b *Backend) listv1(ctx context.Context, t restic.FileType, resp *http.Resp
 
 // listv2 uses the REST protocol v2, where a list HTTP request (e.g. `GET
 // /data/`) returns the names and sizes of all files.
-func (b *Backend) listv2(ctx context.Context, t restic.FileType, resp *http.Response, fn func(restic.FileInfo) error) error {
+func (b *Backend) listv2(ctx context.Context, t file.FileType, resp *http.Response, fn func(restic.FileInfo) error) error {
 	debug.Log("parsing API v2 response")
 	dec := json.NewDecoder(resp.Body)
 
@@ -433,20 +433,20 @@ func (b *Backend) Close() error {
 }
 
 // Remove keys for a specified backend type.
-func (b *Backend) removeKeys(ctx context.Context, t restic.FileType) error {
+func (b *Backend) removeKeys(ctx context.Context, t file.FileType) error {
 	return b.List(ctx, t, func(fi restic.FileInfo) error {
-		return b.Remove(ctx, restic.Handle{Type: t, Name: fi.Name})
+		return b.Remove(ctx, file.Handle{Type: t, Name: fi.Name})
 	})
 }
 
 // Delete removes all data in the backend.
 func (b *Backend) Delete(ctx context.Context) error {
-	alltypes := []restic.FileType{
-		restic.DataFile,
-		restic.KeyFile,
-		restic.LockFile,
-		restic.SnapshotFile,
-		restic.IndexFile}
+	alltypes := []file.FileType{
+		file.DataFile,
+		file.KeyFile,
+		file.LockFile,
+		file.SnapshotFile,
+		file.IndexFile}
 
 	for _, t := range alltypes {
 		err := b.removeKeys(ctx, t)
@@ -455,7 +455,7 @@ func (b *Backend) Delete(ctx context.Context) error {
 		}
 	}
 
-	err := b.Remove(ctx, restic.Handle{Type: restic.ConfigFile})
+	err := b.Remove(ctx, file.Handle{Type: file.ConfigFile})
 	if err != nil && b.IsNotExist(err) {
 		return nil
 	}

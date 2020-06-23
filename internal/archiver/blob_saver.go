@@ -4,13 +4,14 @@ import (
 	"context"
 
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 	tomb "gopkg.in/tomb.v2"
 )
 
 // Saver allows saving a blob.
 type Saver interface {
-	SaveBlob(ctx context.Context, t restic.BlobType, data []byte, id restic.ID, storeDuplicate bool) (restic.ID, bool, error)
+	SaveBlob(ctx context.Context, t restic.BlobType, data []byte, id id.ID, storeDuplicate bool) (id.ID, bool, error)
 	Index() restic.Index
 }
 
@@ -73,7 +74,7 @@ func (s *FutureBlob) Wait(ctx context.Context) {
 }
 
 // ID returns the ID of the blob after it has been saved.
-func (s *FutureBlob) ID() restic.ID {
+func (s *FutureBlob) ID() id.ID {
 	return s.res.id
 }
 
@@ -94,12 +95,12 @@ type saveBlobJob struct {
 }
 
 type saveBlobResponse struct {
-	id    restic.ID
+	id    id.ID
 	known bool
 }
 
 func (s *BlobSaver) saveBlob(ctx context.Context, t restic.BlobType, buf []byte) (saveBlobResponse, error) {
-	id, known, err := s.repo.SaveBlob(ctx, t, buf, restic.ID{}, false)
+	id, known, err := s.repo.SaveBlob(ctx, t, buf, id.ID{}, false)
 
 	if err != nil {
 		return saveBlobResponse{}, err

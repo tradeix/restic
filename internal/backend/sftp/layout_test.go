@@ -56,7 +56,7 @@ func TestLayout(t *testing.T) {
 			}
 
 			datafiles := make(map[string]bool)
-			err = be.List(context.TODO(), restic.DataFile, func(fi restic.FileInfo) error {
+			err = be.List(context.TODO(), file.DataFile, func(fi restic.FileInfo) error {
 				datafiles[fi.Name] = false
 				return nil
 			})

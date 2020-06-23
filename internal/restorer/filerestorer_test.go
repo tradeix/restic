@@ -26,20 +26,20 @@ type TestRepo struct {
 	key *crypto.Key
 
 	// pack names and ids
-	packsNameToID map[string]restic.ID
-	packsIDToName map[restic.ID]string
-	packsIDToData map[restic.ID][]byte
+	packsNameToID map[string]id.ID
+	packsIDToName map[id.ID]string
+	packsIDToData map[id.ID][]byte
 
 	// blobs and files
-	blobs              map[restic.ID][]restic.PackedBlob
+	blobs              map[id.ID][]restic.PackedBlob
 	files              []*fileInfo
 	filesPathToContent map[string]string
 
 	//
-	loader func(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error
+	loader func(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error
 }
 
-func (i *TestRepo) Lookup(blobID restic.ID, _ restic.BlobType) ([]restic.PackedBlob, bool) {
+func (i *TestRepo) Lookup(blobID id.ID, _ restic.BlobType) ([]restic.PackedBlob, bool) {
 	packs, found := i.blobs[blobID]
 	return packs, found
 }
@@ -48,7 +48,7 @@ func (i *TestRepo) packName(pack *packInfo) string {
 	return i.packsIDToName[pack.id]
 }
 
-func (i *TestRepo) packID(name string) restic.ID {
+func (i *TestRepo) packID(name string) id.ID {
 	return i.packsNameToID[name]
 }
 
@@ -60,7 +60,7 @@ func newTestRepo(content []TestFile) *TestRepo {
 	type Pack struct {
 		name  string
 		data  []byte
-		blobs map[restic.ID]restic.Blob
+		blobs map[id.ID]restic.Blob
 	}
 	packs := make(map[string]Pack)
 
@@ -84,11 +84,11 @@ func newTestRepo(content []TestFile) *TestRepo {
 			var pack Pack
 			var found bool
 			if pack, found = packs[blob.pack]; !found {
-				pack = Pack{name: blob.pack, blobs: make(map[restic.ID]restic.Blob)}
+				pack = Pack{name: blob.pack, blobs: make(map[id.ID]restic.Blob)}
 			}
 
 			// calculate blob id and add to the pack as necessary
-			blobID := restic.Hash([]byte(blob.data))
+			blobID := id.Hash([]byte(blob.data))
 			if _, found := pack.blobs[blobID]; !found {
 				blobData := seal([]byte(blob.data))
 				pack.blobs[blobID] = restic.Blob{
@@ -105,13 +105,13 @@ func newTestRepo(content []TestFile) *TestRepo {
 		filesPathToContent[file.name] = content
 	}
 
-	blobs := make(map[restic.ID][]restic.PackedBlob)
-	packsIDToName := make(map[restic.ID]string)
-	packsIDToData := make(map[restic.ID][]byte)
-	packsNameToID := make(map[string]restic.ID)
+	blobs := make(map[id.ID][]restic.PackedBlob)
+	packsIDToName := make(map[id.ID]string)
+	packsIDToData := make(map[id.ID][]byte)
+	packsNameToID := make(map[string]id.ID)
 
 	for _, pack := range packs {
-		packID := restic.Hash(pack.data)
+		packID := id.Hash(pack.data)
 		packsIDToName[packID] = pack.name
 		packsIDToData[packID] = pack.data
 		packsNameToID[pack.name] = packID
@@ -122,9 +122,9 @@ func newTestRepo(content []TestFile) *TestRepo {
 
 	var files []*fileInfo
 	for _, file := range content {
-		content := restic.IDs{}
+		content := id.IDs{}
 		for _, blob := range file.blobs {
-			content = append(content, restic.Hash([]byte(blob.data)))
+			content = append(content, id.Hash([]byte(blob.data)))
 		}
 		files = append(files, &fileInfo{location: file.name, blobs: content})
 	}
@@ -138,7 +138,7 @@ func newTestRepo(content []TestFile) *TestRepo {
 		files:              files,
 		filesPathToContent: filesPathToContent,
 	}
-	repo.loader = func(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+	repo.loader = func(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 		packID, err := restic.ParseID(h.Name)
 		if err != nil {
 			return err

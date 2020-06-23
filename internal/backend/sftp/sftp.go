@@ -10,11 +10,11 @@ import (
 	"path"
 	"time"
 
-	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
-
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/restic"
 
 	"github.com/pkg/sftp"
 )
@@ -256,7 +256,7 @@ func Join(parts ...string) string {
 }
 
 // Save stores data in the backend at the handle.
-func (r *SFTP) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (r *SFTP) Save(ctx context.Context, h file.Handle, rd restic.RewindReader) error {
 	debug.Log("Save %v", h)
 	if err := r.clientError(); err != nil {
 		return err
@@ -303,11 +303,11 @@ func (r *SFTP) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (r *SFTP) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (r *SFTP) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return backend.DefaultLoad(ctx, h, length, offset, r.openReader, fn)
 }
 
-func (r *SFTP) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (r *SFTP) openReader(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load %v, length %v, offset %v", h, length, offset)
 	if err := h.Valid(); err != nil {
 		return nil, err
@@ -338,7 +338,7 @@ func (r *SFTP) openReader(ctx context.Context, h restic.Handle, length int, offs
 }
 
 // Stat returns information about a blob.
-func (r *SFTP) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, error) {
+func (r *SFTP) Stat(ctx context.Context, h file.Handle) (restic.FileInfo, error) {
 	debug.Log("Stat(%v)", h)
 	if err := r.clientError(); err != nil {
 		return restic.FileInfo{}, err
@@ -357,7 +357,7 @@ func (r *SFTP) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, erro
 }
 
 // Test returns true if a blob of the given type and name exists in the backend.
-func (r *SFTP) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (r *SFTP) Test(ctx context.Context, h file.Handle) (bool, error) {
 	debug.Log("Test(%v)", h)
 	if err := r.clientError(); err != nil {
 		return false, err
@@ -376,7 +376,7 @@ func (r *SFTP) Test(ctx context.Context, h restic.Handle) (bool, error) {
 }
 
 // Remove removes the content stored at name.
-func (r *SFTP) Remove(ctx context.Context, h restic.Handle) error {
+func (r *SFTP) Remove(ctx context.Context, h file.Handle) error {
 	debug.Log("Remove(%v)", h)
 	if err := r.clientError(); err != nil {
 		return err
@@ -387,7 +387,7 @@ func (r *SFTP) Remove(ctx context.Context, h restic.Handle) error {
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
-func (r *SFTP) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
+func (r *SFTP) List(ctx context.Context, t file.FileType, fn func(restic.FileInfo) error) error {
 	debug.Log("List %v", t)
 
 	basedir, subdirs := r.Basedir(t)

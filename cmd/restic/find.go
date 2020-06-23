@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 )
@@ -14,11 +15,11 @@ func FindFilteredSnapshots(ctx context.Context, repo *repository.Repository, hos
 		defer close(out)
 		if len(snapshotIDs) != 0 {
 			var (
-				id         restic.ID
+				id         rid.ID
 				usedFilter bool
 				err        error
 			)
-			ids := make(restic.IDs, 0, len(snapshotIDs))
+			ids := make(rid.IDs, 0, len(snapshotIDs))
 			// Process all snapshot IDs given as arguments.
 			for _, s := range snapshotIDs {
 				if s == "latest" {

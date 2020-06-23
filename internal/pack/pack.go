@@ -9,6 +9,7 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 
 	"github.com/restic/restic/internal/crypto"
@@ -32,7 +33,7 @@ func NewPacker(k *crypto.Key, wr io.Writer) *Packer {
 
 // Add saves the data read from rd as a new blob to the packer. Returned is the
 // number of bytes written to the pack.
-func (p *Packer) Add(t restic.BlobType, id restic.ID, data []byte) (int, error) {
+func (p *Packer) Add(t restic.BlobType, id id.ID, data []byte) (int, error) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
@@ -47,13 +48,13 @@ func (p *Packer) Add(t restic.BlobType, id restic.ID, data []byte) (int, error) 
 	return n, errors.Wrap(err, "Write")
 }
 
-var entrySize = uint(binary.Size(restic.BlobType(0)) + binary.Size(uint32(0)) + len(restic.ID{}))
+var entrySize = uint(binary.Size(restic.BlobType(0)) + binary.Size(uint32(0)) + len(id.ID{}))
 
 // headerEntry is used with encoding/binary to read and write header entries
 type headerEntry struct {
 	Type   uint8
 	Length uint32
-	ID     restic.ID
+	ID     id.ID
 }
 
 // Finalize writes the header for all added blobs and finalizes the pack.

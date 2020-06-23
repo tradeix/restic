@@ -24,12 +24,12 @@ func TestLoadAll(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		data := rtest.Random(23+i, rand.Intn(MiB)+500*KiB)
 
-		id := restic.Hash(data)
-		h := restic.Handle{Name: id.String(), Type: restic.DataFile}
+		id := id.Hash(data)
+		h := file.Handle{Name: id.String(), Type: file.DataFile}
 		err := b.Save(context.TODO(), h, restic.NewByteReader(data))
 		rtest.OK(t, err)
 
-		buf, err := backend.LoadAll(context.TODO(), buf, b, restic.Handle{Type: restic.DataFile, Name: id.String()})
+		buf, err := backend.LoadAll(context.TODO(), buf, b, file.Handle{Type: file.DataFile, Name: id.String()})
 		rtest.OK(t, err)
 
 		if len(buf) != len(data) {
@@ -44,9 +44,9 @@ func TestLoadAll(t *testing.T) {
 	}
 }
 
-func save(t testing.TB, be restic.Backend, buf []byte) restic.Handle {
-	id := restic.Hash(buf)
-	h := restic.Handle{Name: id.String(), Type: restic.DataFile}
+func save(t testing.TB, be restic.Backend, buf []byte) file.Handle {
+	id := id.Hash(buf)
+	h := file.Handle{Name: id.String(), Type: file.DataFile}
 	err := be.Save(context.TODO(), h, restic.NewByteReader(buf))
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func TestLoadAllAppend(t *testing.T) {
 	h2 := save(t, b, randomData)
 
 	var tests = []struct {
-		handle restic.Handle
+		handle file.Handle
 		buf    []byte
 		want   []byte
 	}{
@@ -121,11 +121,11 @@ func (rd *mockReader) Close() error {
 
 func TestDefaultLoad(t *testing.T) {
 
-	h := restic.Handle{Name: "id", Type: restic.DataFile}
+	h := file.Handle{Name: "id", Type: file.DataFile}
 	rd := &mockReader{}
 
 	// happy case, assert correct parameters are passed around and content stream is closed
-	err := backend.DefaultLoad(context.TODO(), h, 10, 11, func(ctx context.Context, ih restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+	err := backend.DefaultLoad(context.TODO(), h, 10, 11, func(ctx context.Context, ih file.Handle, length int, offset int64) (io.ReadCloser, error) {
 		rtest.Equals(t, h, ih)
 		rtest.Equals(t, int(10), length)
 		rtest.Equals(t, int64(11), offset)
@@ -139,7 +139,7 @@ func TestDefaultLoad(t *testing.T) {
 	rtest.Equals(t, true, rd.closed)
 
 	// unhappy case, assert producer errors are handled correctly
-	err = backend.DefaultLoad(context.TODO(), h, 10, 11, func(ctx context.Context, ih restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+	err = backend.DefaultLoad(context.TODO(), h, 10, 11, func(ctx context.Context, ih file.Handle, length int, offset int64) (io.ReadCloser, error) {
 		return nil, errors.Errorf("producer error")
 	}, func(ird io.Reader) error {
 		t.Fatalf("unexpected consumer invocation")
@@ -149,7 +149,7 @@ func TestDefaultLoad(t *testing.T) {
 
 	// unhappy case, assert consumer errors are handled correctly
 	rd = &mockReader{}
-	err = backend.DefaultLoad(context.TODO(), h, 10, 11, func(ctx context.Context, ih restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+	err = backend.DefaultLoad(context.TODO(), h, 10, 11, func(ctx context.Context, ih file.Handle, length int, offset int64) (io.ReadCloser, error) {
 		return rd, nil
 	}, func(ird io.Reader) error {
 		return errors.Errorf("consumer error")

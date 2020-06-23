@@ -50,7 +50,7 @@ func newAzureTestSuite(t testing.TB) *test.Suite {
 				return nil, err
 			}
 
-			exists, err := be.Test(context.TODO(), restic.Handle{Type: restic.ConfigFile})
+			exists, err := be.Test(context.TODO(), file.Handle{Type: file.ConfigFile})
 			if err != nil {
 				return nil, err
 			}
@@ -171,8 +171,8 @@ func TestUploadLargeFile(t *testing.T) {
 	}()
 
 	data := rtest.Random(23, 300*1024*1024)
-	id := restic.Hash(data)
-	h := restic.Handle{Name: id.String(), Type: restic.DataFile}
+	id := id.Hash(data)
+	h := file.Handle{Name: id.String(), Type: file.DataFile}
 
 	t.Logf("hash of %d bytes: %v", len(data), id)
 

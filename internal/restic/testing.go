@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/restic/restic/internal/errors"
-
 	"github.com/restic/chunker"
+	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/id"
+
 )
 
 // fakeFile returns a reader which yields deterministic pseudo-random data.
@@ -30,7 +32,7 @@ type fakeFileSystem struct {
 
 // saveFile reads from rd and saves the blobs in the repository. The list of
 // IDs is returned.
-func (fs *fakeFileSystem) saveFile(ctx context.Context, rd io.Reader) (blobs IDs) {
+func (fs *fakeFileSystem) saveFile(ctx context.Context, rd io.Reader) (blobs id.IDs) {
 	if fs.buf == nil {
 		fs.buf = make([]byte, chunker.MaxSize)
 	}
@@ -41,7 +43,7 @@ func (fs *fakeFileSystem) saveFile(ctx context.Context, rd io.Reader) (blobs IDs
 		fs.chunker.Reset(rd, fs.repo.Config().ChunkerPolynomial)
 	}
 
-	blobs = IDs{}
+	blobs = id.IDs{}
 	for {
 		chunk, err := fs.chunker.Next(fs.buf)
 		if errors.Cause(err) == io.EOF {
@@ -52,7 +54,7 @@ func (fs *fakeFileSystem) saveFile(ctx context.Context, rd io.Reader) (blobs IDs
 			fs.t.Fatalf("unable to save chunk in repo: %v", err)
 		}
 
-		id := Hash(chunk.Data)
+		id := id.Hash(chunk.Data)
 		if !fs.blobIsKnown(id, DataBlob) {
 			_, _, err := fs.repo.SaveBlob(ctx, DataBlob, chunk.Data, id, true)
 			if err != nil {
@@ -73,19 +75,19 @@ const (
 	maxNodes    = 15
 )
 
-func (fs *fakeFileSystem) treeIsKnown(tree *Tree) (bool, []byte, ID) {
+func (fs *fakeFileSystem) treeIsKnown(tree *Tree) (bool, []byte, id.ID) {
 	data, err := json.Marshal(tree)
 	if err != nil {
 		fs.t.Fatalf("json.Marshal(tree) returned error: %v", err)
-		return false, nil, ID{}
+		return false, nil, id.ID{}
 	}
 	data = append(data, '\n')
 
-	id := Hash(data)
+	id := id.Hash(data)
 	return fs.blobIsKnown(id, TreeBlob), data, id
 }
 
-func (fs *fakeFileSystem) blobIsKnown(id ID, t BlobType) bool {
+func (fs *fakeFileSystem) blobIsKnown(id id.ID, t BlobType) bool {
 	if fs.rand.Float32() < fs.duplication {
 		return false
 	}
@@ -98,7 +100,7 @@ func (fs *fakeFileSystem) blobIsKnown(id ID, t BlobType) bool {
 }
 
 // saveTree saves a tree of fake files in the repo and returns the ID.
-func (fs *fakeFileSystem) saveTree(ctx context.Context, seed int64, depth int) ID {
+func (fs *fakeFileSystem) saveTree(ctx context.Context, seed int64, depth int) id.ID {
 	rnd := rand.NewSource(seed)
 	numNodes := int(rnd.Int63() % maxNodes)
 
@@ -174,7 +176,7 @@ func TestCreateSnapshot(t testing.TB, repo Repository, at time.Time, depth int, 
 	treeID := fs.saveTree(context.TODO(), seed, depth)
 	snapshot.Tree = &treeID
 
-	id, err := repo.SaveJSONUnpacked(context.TODO(), SnapshotFile, snapshot)
+	id, err := repo.SaveJSONUnpacked(context.TODO(), file.SnapshotFile, snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,8 +194,8 @@ func TestCreateSnapshot(t testing.TB, repo Repository, at time.Time, depth int, 
 }
 
 // TestParseID parses s as a ID and panics if that fails.
-func TestParseID(s string) ID {
-	id, err := ParseID(s)
+func TestParseID(s string) id.ID {
+	id, err := id.ParseID(s)
 	if err != nil {
 		panic(fmt.Sprintf("unable to parse string %q as ID: %v", s, err))
 	}

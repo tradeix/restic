@@ -8,6 +8,9 @@ import (
 	"strings"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui/table"
@@ -52,7 +55,7 @@ func listKeys(ctx context.Context, s *repository.Repository, gopts GlobalOptions
 
 	var keys []keyInfo
 
-	err := s.List(ctx, restic.KeyFile, func(id restic.ID, size int64) error {
+	err := s.List(ctx, file.KeyFile, func(id rid.ID, size int64) error {
 		k, err := repository.LoadKey(ctx, s, id.String())
 		if err != nil {
 			Warnf("LoadKey() failed: %v\n", err)
@@ -135,7 +138,7 @@ func deleteKey(ctx context.Context, repo *repository.Repository, name string) er
 		return errors.Fatal("refusing to remove key currently used to access repository")
 	}
 
-	h := restic.Handle{Type: restic.KeyFile, Name: name}
+	h := file.Handle{Type: file.KeyFile, Name: name}
 	err := repo.Backend().Remove(ctx, h)
 	if err != nil {
 		return err
@@ -156,7 +159,7 @@ func changePassword(gopts GlobalOptions, repo *repository.Repository) error {
 		return errors.Fatalf("creating new key failed: %v\n", err)
 	}
 
-	h := restic.Handle{Type: restic.KeyFile, Name: repo.KeyName()}
+	h := file.Handle{Type: file.KeyFile, Name: repo.KeyName()}
 	err = repo.Backend().Remove(gopts.ctx, h)
 	if err != nil {
 		return err
@@ -182,37 +185,37 @@ func runKey(gopts GlobalOptions, args []string) error {
 
 	switch args[0] {
 	case "list":
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err :=lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
 
 		return listKeys(ctx, repo, gopts)
 	case "add":
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
 
 		return addKey(gopts, repo)
 	case "remove":
-		lock, err := lockRepoExclusive(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepoExclusive(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
 
-		id, err := restic.Find(repo.Backend(), restic.KeyFile, args[1])
+		id, err := restic.Find(repo.Backend(), file.KeyFile, args[1])
 		if err != nil {
 			return err
 		}
 
 		return deleteKey(gopts.ctx, repo, id)
 	case "passwd":
-		lock, err := lockRepoExclusive(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepoExclusive(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}

@@ -3,18 +3,19 @@
 package fuse
 
 import (
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 	"golang.org/x/net/context"
 )
 
 // BlobSizeCache caches the size of blobs in the repo.
 type BlobSizeCache struct {
-	m map[restic.ID]uint
+	m map[id.ID]uint
 }
 
 // NewBlobSizeCache returns a new blob size cache containing all entries from midx.
 func NewBlobSizeCache(ctx context.Context, idx restic.Index) *BlobSizeCache {
-	m := make(map[restic.ID]uint, 1000)
+	m := make(map[id.ID]uint, 1000)
 	for pb := range idx.Each(ctx) {
 		m[pb.ID] = uint(restic.PlaintextLength(int(pb.Length)))
 	}
@@ -24,7 +25,7 @@ func NewBlobSizeCache(ctx context.Context, idx restic.Index) *BlobSizeCache {
 }
 
 // Lookup returns the size of the blob id.
-func (c *BlobSizeCache) Lookup(id restic.ID) (size uint, found bool) {
+func (c *BlobSizeCache) Lookup(id id.ID) (size uint, found bool) {
 	if c == nil {
 		return 0, false
 	}

@@ -13,12 +13,12 @@ import (
 	"github.com/restic/restic/internal/test"
 )
 
-func generateRandomFiles(t testing.TB, tpe restic.FileType, c *Cache) restic.IDSet {
-	ids := restic.NewIDSet()
+func generateRandomFiles(t testing.TB, tpe file.FileType, c *Cache) id.IDSet {
+	ids := id.NewIDSet()
 	for i := 0; i < rand.Intn(15)+10; i++ {
 		buf := test.Random(rand.Int(), 1<<19)
-		id := restic.Hash(buf)
-		h := restic.Handle{Type: tpe, Name: id.String()}
+		id := id.Hash(buf)
+		h := file.Handle{Type: tpe, Name: id.String()}
 
 		if c.Has(h) {
 			t.Errorf("index %v present before save", id)
@@ -34,14 +34,14 @@ func generateRandomFiles(t testing.TB, tpe restic.FileType, c *Cache) restic.IDS
 }
 
 // randomID returns a random ID from s.
-func randomID(s restic.IDSet) restic.ID {
+func randomID(s id.IDSet) id.ID {
 	for id := range s {
 		return id
 	}
 	panic("set is empty")
 }
 
-func load(t testing.TB, c *Cache, h restic.Handle) []byte {
+func load(t testing.TB, c *Cache, h file.Handle) []byte {
 	rd, err := c.Load(h, 0, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +63,7 @@ func load(t testing.TB, c *Cache, h restic.Handle) []byte {
 	return buf
 }
 
-func listFiles(t testing.TB, c *Cache, tpe restic.FileType) restic.IDSet {
+func listFiles(t testing.TB, c *Cache, tpe file.FileType) id.IDSet {
 	list, err := c.list(tpe)
 	if err != nil {
 		t.Errorf("listing failed: %v", err)
@@ -72,7 +72,7 @@ func listFiles(t testing.TB, c *Cache, tpe restic.FileType) restic.IDSet {
 	return list
 }
 
-func clearFiles(t testing.TB, c *Cache, tpe restic.FileType, valid restic.IDSet) {
+func clearFiles(t testing.TB, c *Cache, tpe file.FileType, valid id.IDSet) {
 	if err := c.Clear(tpe, valid); err != nil {
 		t.Error(err)
 	}
@@ -86,10 +86,10 @@ func TestFiles(t *testing.T) {
 	c, cleanup := TestNewCache(t)
 	defer cleanup()
 
-	var tests = []restic.FileType{
-		restic.SnapshotFile,
-		restic.DataFile,
-		restic.IndexFile,
+	var tests = []file.FileType{
+		file.SnapshotFile,
+		file.DataFile,
+		file.IndexFile,
 	}
 
 	for _, tpe := range tests {
@@ -97,8 +97,8 @@ func TestFiles(t *testing.T) {
 			ids := generateRandomFiles(t, tpe, c)
 			id := randomID(ids)
 
-			h := restic.Handle{Type: tpe, Name: id.String()}
-			id2 := restic.Hash(load(t, c, h))
+			h := file.Handle{Type: tpe, Name: id.String()}
+			id2 := id.Hash(load(t, c, h))
 
 			if !id.Equal(id2) {
 				t.Errorf("wrong data returned, want %v, got %v", id.Str(), id2.Str())
@@ -113,16 +113,16 @@ func TestFiles(t *testing.T) {
 				t.Errorf("wrong list of index IDs returned, want:\n  %v\ngot:\n  %v", ids, list)
 			}
 
-			clearFiles(t, c, tpe, restic.NewIDSet(id))
+			clearFiles(t, c, tpe, id.NewIDSet(id))
 			list2 := listFiles(t, c, tpe)
 			ids.Delete(id)
-			want := restic.NewIDSet(id)
+			want := id.NewIDSet(id)
 			if !list2.Equals(want) {
 				t.Errorf("ClearIndexes removed indexes, want:\n  %v\ngot:\n  %v", list2, want)
 			}
 
-			clearFiles(t, c, tpe, restic.NewIDSet())
-			want = restic.NewIDSet()
+			clearFiles(t, c, tpe, id.NewIDSet())
+			want = id.NewIDSet()
 			list3 := listFiles(t, c, tpe)
 			if !list3.Equals(want) {
 				t.Errorf("ClearIndexes returned a wrong list, want:\n  %v\ngot:\n  %v", want, list3)
@@ -141,10 +141,10 @@ func TestFileSaveWriter(t *testing.T) {
 
 	// save about 5 MiB of data in the cache
 	data := test.Random(rand.Int(), 5234142)
-	id := restic.ID{}
+	id := id.ID{}
 	copy(id[:], data)
-	h := restic.Handle{
-		Type: restic.DataFile,
+	h := file.Handle{
+		Type: file.DataFile,
 		Name: id.String(),
 	}
 
@@ -199,10 +199,10 @@ func TestFileLoad(t *testing.T) {
 
 	// save about 5 MiB of data in the cache
 	data := test.Random(rand.Int(), 5234142)
-	id := restic.ID{}
+	id := id.ID{}
 	copy(id[:], data)
-	h := restic.Handle{
-		Type: restic.DataFile,
+	h := file.Handle{
+		Type: file.DataFile,
 		Name: id.String(),
 	}
 	if err := c.Save(h, bytes.NewReader(data)); err != nil {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/walker"
 )
@@ -69,7 +70,7 @@ func init() {
 
 type lsSnapshot struct {
 	*restic.Snapshot
-	ID         *restic.ID `json:"id"`
+	ID         *rid.ID `json:"id"`
 	ShortID    string     `json:"short_id"`
 	StructType string     `json:"struct_type"` // "snapshot"
 }
@@ -194,7 +195,7 @@ func runLs(opts LsOptions, gopts GlobalOptions, args []string) error {
 	for sn := range FindFilteredSnapshots(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, args[:1]) {
 		printSnapshot(sn)
 
-		err := walker.Walk(ctx, repo, *sn.Tree, nil, func(_ restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+		err := walker.Walk(ctx, repo, *sn.Tree, nil, func(_ rid.ID, nodepath string, node *restic.Node, err error) (bool, error) {
 			if err != nil {
 				return false, err
 			}

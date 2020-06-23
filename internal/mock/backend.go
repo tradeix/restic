@@ -12,12 +12,12 @@ import (
 type Backend struct {
 	CloseFn      func() error
 	IsNotExistFn func(err error) bool
-	SaveFn       func(ctx context.Context, h restic.Handle, rd restic.RewindReader) error
-	OpenReaderFn func(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error)
-	StatFn       func(ctx context.Context, h restic.Handle) (restic.FileInfo, error)
-	ListFn       func(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error
-	RemoveFn     func(ctx context.Context, h restic.Handle) error
-	TestFn       func(ctx context.Context, h restic.Handle) (bool, error)
+	SaveFn       func(ctx context.Context, h file.Handle, rd restic.RewindReader) error
+	OpenReaderFn func(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error)
+	StatFn       func(ctx context.Context, h file.Handle) (restic.FileInfo, error)
+	ListFn       func(ctx context.Context, t file.FileType, fn func(restic.FileInfo) error) error
+	RemoveFn     func(ctx context.Context, h file.Handle) error
+	TestFn       func(ctx context.Context, h file.Handle) (bool, error)
 	DeleteFn     func(ctx context.Context) error
 	LocationFn   func() string
 }
@@ -56,7 +56,7 @@ func (m *Backend) IsNotExist(err error) bool {
 }
 
 // Save data in the backend.
-func (m *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (m *Backend) Save(ctx context.Context, h file.Handle, rd restic.RewindReader) error {
 	if m.SaveFn == nil {
 		return errors.New("not implemented")
 	}
@@ -66,7 +66,7 @@ func (m *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindRea
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (m *Backend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (m *Backend) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	rd, err := m.openReader(ctx, h, length, offset)
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func (m *Backend) Load(ctx context.Context, h restic.Handle, length int, offset 
 	return rd.Close()
 }
 
-func (m *Backend) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (m *Backend) openReader(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error) {
 	if m.OpenReaderFn == nil {
 		return nil, errors.New("not implemented")
 	}
@@ -88,7 +88,7 @@ func (m *Backend) openReader(ctx context.Context, h restic.Handle, length int, o
 }
 
 // Stat an object in the backend.
-func (m *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, error) {
+func (m *Backend) Stat(ctx context.Context, h file.Handle) (restic.FileInfo, error) {
 	if m.StatFn == nil {
 		return restic.FileInfo{}, errors.New("not implemented")
 	}
@@ -97,7 +97,7 @@ func (m *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, e
 }
 
 // List items of type t.
-func (m *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
+func (m *Backend) List(ctx context.Context, t file.FileType, fn func(restic.FileInfo) error) error {
 	if m.ListFn == nil {
 		return nil
 	}
@@ -106,7 +106,7 @@ func (m *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.Fi
 }
 
 // Remove data from the backend.
-func (m *Backend) Remove(ctx context.Context, h restic.Handle) error {
+func (m *Backend) Remove(ctx context.Context, h file.Handle) error {
 	if m.RemoveFn == nil {
 		return errors.New("not implemented")
 	}
@@ -115,7 +115,7 @@ func (m *Backend) Remove(ctx context.Context, h restic.Handle) error {
 }
 
 // Test for the existence of a specific item.
-func (m *Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (m *Backend) Test(ctx context.Context, h file.Handle) (bool, error) {
 	if m.TestFn == nil {
 		return false, errors.New("not implemented")
 	}

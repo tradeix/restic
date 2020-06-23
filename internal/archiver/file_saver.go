@@ -9,6 +9,7 @@ import (
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 	tomb "gopkg.in/tomb.v2"
 )
@@ -160,7 +161,7 @@ func (s *FileSaver) saveFile(ctx context.Context, chnker *chunker.Chunker, snPat
 
 	var results []FutureBlob
 
-	node.Content = []restic.ID{}
+	node.Content = []id.ID{}
 	var size uint64
 	for {
 		buf := s.saveFilePool.Get()

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/restic/restic/internal/errors"
-
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/id"
 )
 
 // Tree is an ordered list of nodes.
@@ -89,7 +89,7 @@ func (t *Tree) Sort() {
 }
 
 // Subtrees returns a slice of all subtree IDs of the tree.
-func (t *Tree) Subtrees() (trees IDs) {
+func (t *Tree) Subtrees() (trees id.IDs) {
 	for _, node := range t.Nodes {
 		if node.Type == "dir" && node.Subtree != nil {
 			trees = append(trees, *node.Subtree)

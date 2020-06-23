@@ -17,7 +17,7 @@ func TestBackendSaveRetry(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	errcount := 0
 	be := &mock.Backend{
-		SaveFn: func(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+		SaveFn: func(ctx context.Context, h file.Handle, rd restic.RewindReader) error {
 			if errcount == 0 {
 				errcount++
 				_, err := io.CopyN(ioutil.Discard, rd, 120)
@@ -38,7 +38,7 @@ func TestBackendSaveRetry(t *testing.T) {
 	}
 
 	data := test.Random(23, 5*1024*1024+11241)
-	err := retryBackend.Save(context.TODO(), restic.Handle{}, restic.NewByteReader(data))
+	err := retryBackend.Save(context.TODO(), file.Handle{}, restic.NewByteReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestBackendListRetry(t *testing.T) {
 
 	retry := 0
 	be := &mock.Backend{
-		ListFn: func(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
+		ListFn: func(ctx context.Context, t file.FileType, fn func(restic.FileInfo) error) error {
 			// fail during first retry, succeed during second
 			retry++
 			if retry == 1 {
@@ -78,7 +78,7 @@ func TestBackendListRetry(t *testing.T) {
 	}
 
 	var listed []string
-	err := retryBackend.List(context.TODO(), restic.DataFile, func(fi restic.FileInfo) error {
+	err := retryBackend.List(context.TODO(), file.DataFile, func(fi restic.FileInfo) error {
 		listed = append(listed, fi.Name)
 		return nil
 	})
@@ -91,7 +91,7 @@ func TestBackendListRetryErrorFn(t *testing.T) {
 	var names = []string{"id1", "id2", "foo", "bar"}
 
 	be := &mock.Backend{
-		ListFn: func(ctx context.Context, tpe restic.FileType, fn func(restic.FileInfo) error) error {
+		ListFn: func(ctx context.Context, tpe file.FileType, fn func(restic.FileInfo) error) error {
 			t.Logf("List called for %v", tpe)
 			for _, name := range names {
 				err := fn(restic.FileInfo{Name: name})
@@ -112,7 +112,7 @@ func TestBackendListRetryErrorFn(t *testing.T) {
 
 	var listed []string
 	run := 0
-	err := retryBackend.List(context.TODO(), restic.DataFile, func(fi restic.FileInfo) error {
+	err := retryBackend.List(context.TODO(), file.DataFile, func(fi restic.FileInfo) error {
 		t.Logf("fn called for %v", fi.Name)
 		run++
 		// return an error for the third item in the list
@@ -143,7 +143,7 @@ func TestBackendListRetryErrorBackend(t *testing.T) {
 
 	retries := 0
 	be := &mock.Backend{
-		ListFn: func(ctx context.Context, tpe restic.FileType, fn func(restic.FileInfo) error) error {
+		ListFn: func(ctx context.Context, tpe file.FileType, fn func(restic.FileInfo) error) error {
 			t.Logf("List called for %v, retries %v", tpe, retries)
 			retries++
 			for i, name := range names {
@@ -168,7 +168,7 @@ func TestBackendListRetryErrorBackend(t *testing.T) {
 	}
 
 	var listed []string
-	err := retryBackend.List(context.TODO(), restic.DataFile, func(fi restic.FileInfo) error {
+	err := retryBackend.List(context.TODO(), file.DataFile, func(fi restic.FileInfo) error {
 		t.Logf("fn called for %v", fi.Name)
 		listed = append(listed, fi.Name)
 		return nil
@@ -225,7 +225,7 @@ func TestBackendLoadRetry(t *testing.T) {
 	attempt := 0
 
 	be := mock.NewBackend()
-	be.OpenReaderFn = func(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+	be.OpenReaderFn = func(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error) {
 		// returns failing reader on first invocation, good reader on subsequent invocations
 		attempt++
 		if attempt > 1 {
@@ -239,7 +239,7 @@ func TestBackendLoadRetry(t *testing.T) {
 	}
 
 	var buf []byte
-	err := retryBackend.Load(context.TODO(), restic.Handle{}, 0, 0, func(rd io.Reader) (err error) {
+	err := retryBackend.Load(context.TODO(), file.Handle{}, 0, 0, func(rd io.Reader) (err error) {
 		buf, err = ioutil.ReadAll(rd)
 		return err
 	})

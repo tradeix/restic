@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 	"github.com/spf13/cobra"
 )
@@ -88,8 +90,8 @@ func runForget(opts ForgetOptions, gopts GlobalOptions, args []string) error {
 		return err
 	}
 
-	lock, err := lockRepoExclusive(repo)
-	defer unlockRepo(lock)
+	lck, err := lock.LockRepoExclusive(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}
@@ -109,7 +111,7 @@ func runForget(opts ForgetOptions, gopts GlobalOptions, args []string) error {
 		// When explicit snapshots args are given, remove them immediately.
 		for _, sn := range snapshots {
 			if !opts.DryRun {
-				h := restic.Handle{Type: restic.SnapshotFile, Name: sn.ID().String()}
+				h := file.Handle{Type: file.SnapshotFile, Name: sn.ID().String()}
 				if err = repo.Backend().Remove(gopts.ctx, h); err != nil {
 					return err
 				}
@@ -195,7 +197,7 @@ func runForget(opts ForgetOptions, gopts GlobalOptions, args []string) error {
 
 				if !opts.DryRun {
 					for _, sn := range remove {
-						h := restic.Handle{Type: restic.SnapshotFile, Name: sn.ID().String()}
+						h := file.Handle{Type: file.SnapshotFile, Name: sn.ID().String()}
 						err = repo.Backend().Remove(gopts.ctx, h)
 						if err != nil {
 							return err

@@ -1,4 +1,4 @@
-package restic_test
+package lock_test
 
 import (
 	"context"
@@ -92,18 +92,18 @@ func TestExclusiveLockOnLockedRepo(t *testing.T) {
 	rtest.OK(t, elock.Unlock())
 }
 
-func createFakeLock(repo restic.Repository, t time.Time, pid int) (restic.ID, error) {
+func createFakeLock(repo restic.Repository, t time.Time, pid int) (id.ID, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
-		return restic.ID{}, err
+		return id.ID{}, err
 	}
 
 	newLock := &restic.Lock{Time: t, PID: pid, Hostname: hostname}
-	return repo.SaveJSONUnpacked(context.TODO(), restic.LockFile, &newLock)
+	return repo.SaveJSONUnpacked(context.TODO(), file.LockFile, &newLock)
 }
 
-func removeLock(repo restic.Repository, id restic.ID) error {
-	h := restic.Handle{Type: restic.LockFile, Name: id.String()}
+func removeLock(repo restic.Repository, id id.ID) error {
+	h := file.Handle{Type: file.LockFile, Name: id.String()}
 	return repo.Backend().Remove(context.TODO(), h)
 }
 
@@ -163,8 +163,8 @@ func TestLockStale(t *testing.T) {
 	}
 }
 
-func lockExists(repo restic.Repository, t testing.TB, id restic.ID) bool {
-	h := restic.Handle{Type: restic.LockFile, Name: id.String()}
+func lockExists(repo restic.Repository, t testing.TB, id id.ID) bool {
+	h := file.Handle{Type: file.LockFile, Name: id.String()}
 	exists, err := repo.Backend().Test(context.TODO(), h)
 	rtest.OK(t, err)
 
@@ -227,8 +227,8 @@ func TestLockRefresh(t *testing.T) {
 	rtest.OK(t, err)
 	time0 := lock.Time
 
-	var lockID *restic.ID
-	err = repo.List(context.TODO(), restic.LockFile, func(id restic.ID, size int64) error {
+	var lockID *id.ID
+	err = repo.List(context.TODO(), file.LockFile, func(id id.ID, size int64) error {
 		if lockID != nil {
 			t.Error("more than one lock found")
 		}
@@ -242,8 +242,8 @@ func TestLockRefresh(t *testing.T) {
 	time.Sleep(time.Millisecond)
 	rtest.OK(t, lock.Refresh(context.TODO()))
 
-	var lockID2 *restic.ID
-	err = repo.List(context.TODO(), restic.LockFile, func(id restic.ID, size int64) error {
+	var lockID2 *id.ID
+	err = repo.List(context.TODO(), file.LockFile, func(id id.ID, size int64) error {
 		if lockID2 != nil {
 			t.Error("more than one lock found")
 		}

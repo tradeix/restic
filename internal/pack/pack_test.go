@@ -21,7 +21,7 @@ var testLens = []int{23, 31650, 25860, 10928, 13769, 19862, 5211, 127, 13690, 30
 
 type Buf struct {
 	data []byte
-	id   restic.ID
+	id   id.ID
 }
 
 func newPack(t testing.TB, k *crypto.Key, lengths []int) ([]Buf, []byte, uint) {
@@ -56,7 +56,7 @@ func verifyBlobs(t testing.TB, bufs []Buf, k *crypto.Key, rd io.ReaderAt, packSi
 	// header length
 	written += binary.Size(uint32(0))
 	// header + header crypto
-	headerSize := len(bufs) * (binary.Size(restic.BlobType(0)) + binary.Size(uint32(0)) + len(restic.ID{}))
+	headerSize := len(bufs) * (binary.Size(restic.BlobType(0)) + binary.Size(uint32(0)) + len(id.ID{}))
 	written += restic.CiphertextLength(headerSize)
 
 	// check length
@@ -124,9 +124,9 @@ func TestUnpackReadSeeker(t *testing.T) {
 	bufs, packData, packSize := newPack(t, k, testLens)
 
 	b := mem.New()
-	id := restic.Hash(packData)
+	id := id.Hash(packData)
 
-	handle := restic.Handle{Type: restic.DataFile, Name: id.String()}
+	handle := file.Handle{Type: file.DataFile, Name: id.String()}
 	rtest.OK(t, b.Save(context.TODO(), handle, restic.NewByteReader(packData)))
 	verifyBlobs(t, bufs, k, restic.ReaderAt(b, handle), packSize)
 }
@@ -137,9 +137,9 @@ func TestShortPack(t *testing.T) {
 	bufs, packData, packSize := newPack(t, k, []int{23})
 
 	b := mem.New()
-	id := restic.Hash(packData)
+	id := id.Hash(packData)
 
-	handle := restic.Handle{Type: restic.DataFile, Name: id.String()}
+	handle := file.Handle{Type: file.DataFile, Name: id.String()}
 	rtest.OK(t, b.Save(context.TODO(), handle, restic.NewByteReader(packData)))
 	verifyBlobs(t, bufs, k, restic.ReaderAt(b, handle), packSize)
 }

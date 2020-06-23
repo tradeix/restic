@@ -413,7 +413,7 @@ type blobCountingRepo struct {
 	saved map[restic.BlobHandle]uint
 }
 
-func (repo *blobCountingRepo) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte, id restic.ID, storeDuplicate bool) (restic.ID, bool, error) {
+func (repo *blobCountingRepo) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte, id id.ID, storeDuplicate bool) (id.ID, bool, error) {
 	id, exists, err := repo.Repository.SaveBlob(ctx, t, buf, id, false)
 	if exists {
 		return id, exists, err
@@ -425,7 +425,7 @@ func (repo *blobCountingRepo) SaveBlob(ctx context.Context, t restic.BlobType, b
 	return id, exists, err
 }
 
-func (repo *blobCountingRepo) SaveTree(ctx context.Context, t *restic.Tree) (restic.ID, error) {
+func (repo *blobCountingRepo) SaveTree(ctx context.Context, t *restic.Tree) (id.ID, error) {
 	id, err := repo.Repository.SaveTree(ctx, t)
 	h := restic.BlobHandle{ID: id, Type: restic.TreeBlob}
 	repo.m.Lock()
@@ -1824,10 +1824,10 @@ type failSaveRepo struct {
 	err       error
 }
 
-func (f *failSaveRepo) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte, id restic.ID, storeDuplicate bool) (restic.ID, bool, error) {
+func (f *failSaveRepo) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte, id id.ID, storeDuplicate bool) (id.ID, bool, error) {
 	val := atomic.AddInt32(&f.cnt, 1)
 	if val >= f.failAfter {
-		return restic.ID{}, false, f.err
+		return id.ID{}, false, f.err
 	}
 
 	return f.Repository.SaveBlob(ctx, t, buf, id, storeDuplicate)
@@ -1935,7 +1935,7 @@ func TestArchiverAbortEarlyOnError(t *testing.T) {
 	}
 }
 
-func snapshot(t testing.TB, repo restic.Repository, fs fs.FS, parent restic.ID, filename string) (restic.ID, *restic.Node) {
+func snapshot(t testing.TB, repo restic.Repository, fs fs.FS, parent id.ID, filename string) (id.ID, *restic.Node) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2049,7 +2049,7 @@ func TestMetadataChanged(t *testing.T) {
 		},
 	}
 
-	snapshotID, node2 := snapshot(t, repo, fs, restic.ID{}, "testfile")
+	snapshotID, node2 := snapshot(t, repo, fs, id.ID{}, "testfile")
 
 	// set some values so we can then compare the nodes
 	want.Content = node2.Content

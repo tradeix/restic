@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/walker"
 
@@ -76,8 +79,8 @@ func runStats(gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
@@ -91,7 +94,7 @@ func runStats(gopts GlobalOptions, args []string) error {
 	stats := &statsContainer{
 		uniqueFiles:  make(map[fileID]struct{}),
 		uniqueInodes: make(map[uint64]struct{}),
-		fileBlobs:    make(map[string]restic.IDSet),
+		fileBlobs:    make(map[string]rid.IDSet),
 		blobs:        restic.NewBlobSet(),
 		blobsSeen:    restic.NewBlobSet(),
 	}
@@ -99,7 +102,7 @@ func runStats(gopts GlobalOptions, args []string) error {
 	if snapshotIDString != "" {
 		// scan just a single snapshot
 
-		var sID restic.ID
+		var sID rid.ID
 		if snapshotIDString == "latest" {
 			sID, err = restic.FindLatestSnapshot(ctx, repo, []string{}, []restic.TagList{}, snapshotByHosts)
 			if err != nil {
@@ -123,7 +126,7 @@ func runStats(gopts GlobalOptions, args []string) error {
 		}
 	} else {
 		// iterate every snapshot in the repo
-		err = repo.List(ctx, restic.SnapshotFile, func(snapshotID restic.ID, size int64) error {
+		err = repo.List(ctx, file.SnapshotFile, func(snapshotID rid.ID, size int64) error {
 			snapshot, err := restic.LoadSnapshot(ctx, repo, snapshotID)
 			if err != nil {
 				return fmt.Errorf("Error loading snapshot %s: %v", snapshotID.Str(), err)
@@ -186,7 +189,7 @@ func statsWalkSnapshot(ctx context.Context, snapshot *restic.Snapshot, repo rest
 		return restic.FindUsedBlobs(ctx, repo, *snapshot.Tree, stats.blobs, stats.blobsSeen)
 	}
 
-	err := walker.Walk(ctx, repo, *snapshot.Tree, restic.NewIDSet(), statsWalkTree(repo, stats))
+	err := walker.Walk(ctx, repo, *snapshot.Tree, rid.NewIDSet(), statsWalkTree(repo, stats))
 	if err != nil {
 		return fmt.Errorf("walking tree %s: %v", *snapshot.Tree, err)
 	}
@@ -194,7 +197,7 @@ func statsWalkSnapshot(ctx context.Context, snapshot *restic.Snapshot, repo rest
 }
 
 func statsWalkTree(repo restic.Repository, stats *statsContainer) walker.WalkFunc {
-	return func(parentTreeID restic.ID, npath string, node *restic.Node, nodeErr error) (bool, error) {
+	return func(parentTreeID rid.ID, npath string, node *restic.Node, nodeErr error) (bool, error) {
 		if nodeErr != nil {
 			return true, nodeErr
 		}
@@ -222,7 +225,7 @@ func statsWalkTree(repo restic.Repository, stats *statsContainer) walker.WalkFun
 						// mode, a file is unique by both contents and path
 						nodePath := filepath.Join(npath, node.Name)
 						if _, ok := stats.fileBlobs[nodePath]; !ok {
-							stats.fileBlobs[nodePath] = restic.NewIDSet()
+							stats.fileBlobs[nodePath] = rid.NewIDSet()
 							stats.TotalFileCount++
 						}
 						if _, ok := stats.fileBlobs[nodePath][blobID]; !ok {
@@ -316,7 +319,7 @@ type statsContainer struct {
 
 	// fileBlobs maps a file name (path) to the set of
 	// blobs that have been seen as a part of the file
-	fileBlobs map[string]restic.IDSet
+	fileBlobs map[string]rid.IDSet
 
 	// blobs and blobsSeen are used to count individual
 	// unique blobs, independent of references to files

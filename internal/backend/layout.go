@@ -8,15 +8,16 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/id"
 )
 
 // Layout computes paths for file name storage.
 type Layout interface {
-	Filename(restic.Handle) string
-	Dirname(restic.Handle) string
-	Basedir(restic.FileType) (dir string, subdirs bool)
+	Filename(file.Handle) string
+	Dirname(file.Handle) string
+	Basedir(file.FileType) (dir string, subdirs bool)
 	Paths() []string
 	Name() string
 }
@@ -65,7 +66,7 @@ func (l *LocalFilesystem) IsNotExist(err error) bool {
 	return os.IsNotExist(err)
 }
 
-var backendFilenameLength = len(restic.ID{}) * 2
+var backendFilenameLength = len(id.ID{}) * 2
 var backendFilename = regexp.MustCompile(fmt.Sprintf("^[a-fA-F0-9]{%d}$", backendFilenameLength))
 
 func hasBackendFile(fs Filesystem, dir string) (bool, error) {
@@ -101,13 +102,13 @@ func DetectLayout(repo Filesystem, dir string) (Layout, error) {
 	}
 
 	// key file in the "keys" dir (DefaultLayout)
-	foundKeysFile, err := hasBackendFile(repo, repo.Join(dir, defaultLayoutPaths[restic.KeyFile]))
+	foundKeysFile, err := hasBackendFile(repo, repo.Join(dir, defaultLayoutPaths[file.KeyFile]))
 	if err != nil {
 		return nil, err
 	}
 
 	// key file in the "key" dir (S3LegacyLayout)
-	foundKeyFile, err := hasBackendFile(repo, repo.Join(dir, s3LayoutPaths[restic.KeyFile]))
+	foundKeyFile, err := hasBackendFile(repo, repo.Join(dir, s3LayoutPaths[file.KeyFile]))
 	if err != nil {
 		return nil, err
 	}

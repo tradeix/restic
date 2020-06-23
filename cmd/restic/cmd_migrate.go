@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/migrations"
 	"github.com/restic/restic/internal/restic"
 
@@ -99,8 +100,8 @@ func runMigrate(opts MigrateOptions, gopts GlobalOptions, args []string) error {
 		return err
 	}
 
-	lock, err := lockRepoExclusive(repo)
-	defer unlockRepo(lock)
+	lck, err := lock.LockRepoExclusive(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}

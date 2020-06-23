@@ -26,7 +26,7 @@ func newTestSuite() *test.Suite {
 		Create: func(cfg interface{}) (restic.Backend, error) {
 			c := cfg.(*memConfig)
 			if c.be != nil {
-				ok, err := c.be.Test(context.TODO(), restic.Handle{Type: restic.ConfigFile})
+				ok, err := c.be.Test(context.TODO(), file.Handle{Type: file.ConfigFile})
 				if err != nil {
 					return nil, err
 				}

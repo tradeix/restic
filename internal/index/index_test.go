@@ -29,7 +29,7 @@ func createFilledRepo(t testing.TB, snapshots int, dup float32) (restic.Reposito
 }
 
 func validateIndex(t testing.TB, repo restic.Repository, idx *Index) {
-	err := repo.List(context.TODO(), restic.DataFile, func(id restic.ID, size int64) error {
+	err := repo.List(context.TODO(), file.DataFile, func(id id.ID, size int64) error {
 		p, ok := idx.Packs[id]
 		if !ok {
 			t.Errorf("pack %v missing from index", id.Str())
@@ -50,7 +50,7 @@ func TestIndexNew(t *testing.T) {
 	repo, cleanup := createFilledRepo(t, 3, 0)
 	defer cleanup()
 
-	idx, invalid, err := New(context.TODO(), repo, restic.NewIDSet(), nil)
+	idx, invalid, err := New(context.TODO(), repo, id.NewIDSet(), nil)
 	if err != nil {
 		t.Fatalf("New() returned error %v", err)
 	}
@@ -75,13 +75,13 @@ type ErrorRepo struct {
 }
 
 // List returns an error after repo.MaxListFiles files.
-func (repo *ErrorRepo) List(ctx context.Context, t restic.FileType, fn func(restic.ID, int64) error) error {
+func (repo *ErrorRepo) List(ctx context.Context, t file.FileType, fn func(id.ID, int64) error) error {
 	if repo.MaxListFiles == 0 {
 		return errors.New("test error, max is zero")
 	}
 
 	max := repo.MaxListFiles
-	return repo.Repository.List(ctx, t, func(id restic.ID, size int64) error {
+	return repo.Repository.List(ctx, t, func(id id.ID, size int64) error {
 		if max == 0 {
 			return errors.New("test error, max reached zero")
 		}
@@ -92,7 +92,7 @@ func (repo *ErrorRepo) List(ctx context.Context, t restic.FileType, fn func(rest
 }
 
 // ListPack returns an error after repo.MaxPacks files.
-func (repo *ErrorRepo) ListPack(ctx context.Context, id restic.ID, size int64) ([]restic.Blob, int64, error) {
+func (repo *ErrorRepo) ListPack(ctx context.Context, id id.ID, size int64) ([]restic.Blob, int64, error) {
 	repo.MaxPacksMutex.Lock()
 	max := repo.MaxPacks
 	if max > 0 {
@@ -116,7 +116,7 @@ func TestIndexNewListErrors(t *testing.T) {
 			Repository:   repo,
 			MaxListFiles: max,
 		}
-		idx, invalid, err := New(context.TODO(), errRepo, restic.NewIDSet(), nil)
+		idx, invalid, err := New(context.TODO(), errRepo, id.NewIDSet(), nil)
 		if err == nil {
 			t.Errorf("expected error not found, got nil")
 		}
@@ -140,7 +140,7 @@ func TestIndexNewPackErrors(t *testing.T) {
 			Repository: repo,
 			MaxPacks:   max,
 		}
-		idx, invalid, err := New(context.TODO(), errRepo, restic.NewIDSet(), nil)
+		idx, invalid, err := New(context.TODO(), errRepo, id.NewIDSet(), nil)
 		if err == nil {
 			t.Errorf("expected error not found, got nil")
 		}
@@ -170,7 +170,7 @@ func TestIndexLoad(t *testing.T) {
 
 	validateIndex(t, repo, loadIdx)
 
-	newIdx, _, err := New(context.TODO(), repo, restic.NewIDSet(), nil)
+	newIdx, _, err := New(context.TODO(), repo, id.NewIDSet(), nil)
 	if err != nil {
 		t.Fatalf("New() returned error %v", err)
 	}
@@ -234,7 +234,7 @@ func BenchmarkIndexNew(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		idx, _, err := New(context.TODO(), repo, restic.NewIDSet(), nil)
+		idx, _, err := New(context.TODO(), repo, id.NewIDSet(), nil)
 
 		if err != nil {
 			b.Fatalf("New() returned error %v", err)
@@ -251,7 +251,7 @@ func BenchmarkIndexSave(b *testing.B) {
 	repo, cleanup := repository.TestRepository(b)
 	defer cleanup()
 
-	idx, _, err := New(context.TODO(), repo, restic.NewIDSet(), nil)
+	idx, _, err := New(context.TODO(), repo, id.NewIDSet(), nil)
 	test.OK(b, err)
 
 	for i := 0; i < 8000; i++ {
@@ -284,7 +284,7 @@ func TestIndexDuplicateBlobs(t *testing.T) {
 	repo, cleanup := createFilledRepo(t, 3, 0.05)
 	defer cleanup()
 
-	idx, _, err := New(context.TODO(), repo, restic.NewIDSet(), nil)
+	idx, _, err := New(context.TODO(), repo, id.NewIDSet(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -326,7 +326,7 @@ func TestIndexSave(t *testing.T) {
 
 	for id := range idx.IndexIDs {
 		t.Logf("remove index %v", id.Str())
-		h := restic.Handle{Type: restic.IndexFile, Name: id.String()}
+		h := file.Handle{Type: file.IndexFile, Name: id.String()}
 		err = repo.Backend().Remove(context.TODO(), h)
 		if err != nil {
 			t.Errorf("error removing index %v: %v", id, err)
@@ -365,7 +365,7 @@ func TestIndexSave(t *testing.T) {
 
 // Location describes the location of a blob in a pack.
 type location struct {
-	PackID restic.ID
+	PackID id.ID
 	restic.Blob
 }
 
@@ -394,8 +394,8 @@ func TestIndexAddRemovePack(t *testing.T) {
 		t.Fatalf("Load() returned error %v", err)
 	}
 
-	var packID restic.ID
-	err = repo.List(context.TODO(), restic.DataFile, func(id restic.ID, size int64) error {
+	var packID id.ID
+	err = repo.List(context.TODO(), file.DataFile, func(id id.ID, size int64) error {
 		packID = id
 		return nil
 	})
@@ -459,7 +459,7 @@ func TestIndexLoadDocReference(t *testing.T) {
 	repo, cleanup := repository.TestRepository(t)
 	defer cleanup()
 
-	id, err := repo.SaveUnpacked(context.TODO(), restic.IndexFile, docExample)
+	id, err := repo.SaveUnpacked(context.TODO(), file.IndexFile, docExample)
 	if err != nil {
 		t.Fatalf("SaveUnpacked() returned error %v", err)
 	}

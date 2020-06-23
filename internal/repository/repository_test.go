@@ -31,10 +31,10 @@ func TestSave(t *testing.T) {
 		_, err := io.ReadFull(rnd, data)
 		rtest.OK(t, err)
 
-		id := restic.Hash(data)
+		id := id.Hash(data)
 
 		// save
-		sid, _, err := repo.SaveBlob(context.TODO(), restic.DataBlob, data, restic.ID{}, false)
+		sid, _, err := repo.SaveBlob(context.TODO(), restic.DataBlob, data, id.ID{}, false)
 		rtest.OK(t, err)
 
 		rtest.Equals(t, id, sid)
@@ -66,7 +66,7 @@ func TestSaveFrom(t *testing.T) {
 		_, err := io.ReadFull(rnd, data)
 		rtest.OK(t, err)
 
-		id := restic.Hash(data)
+		id := id.Hash(data)
 
 		// save
 		id2, _, err := repo.SaveBlob(context.TODO(), restic.DataBlob, data, id, false)
@@ -100,7 +100,7 @@ func BenchmarkSaveAndEncrypt(t *testing.B) {
 	_, err := io.ReadFull(rnd, data)
 	rtest.OK(t, err)
 
-	id := restic.ID(sha256.Sum256(data))
+	id := id.ID(sha256.Sum256(data))
 
 	t.ReportAllocs()
 	t.ResetTimer()
@@ -158,7 +158,7 @@ func TestLoadBlob(t *testing.T) {
 	_, err := io.ReadFull(rnd, buf)
 	rtest.OK(t, err)
 
-	id, _, err := repo.SaveBlob(context.TODO(), restic.DataBlob, buf, restic.ID{}, false)
+	id, _, err := repo.SaveBlob(context.TODO(), restic.DataBlob, buf, id.ID{}, false)
 	rtest.OK(t, err)
 	rtest.OK(t, repo.Flush(context.Background()))
 
@@ -187,7 +187,7 @@ func BenchmarkLoadBlob(b *testing.B) {
 	_, err := io.ReadFull(rnd, buf)
 	rtest.OK(b, err)
 
-	id, _, err := repo.SaveBlob(context.TODO(), restic.DataBlob, buf, restic.ID{}, false)
+	id, _, err := repo.SaveBlob(context.TODO(), restic.DataBlob, buf, id.ID{}, false)
 	rtest.OK(b, err)
 	rtest.OK(b, repo.Flush(context.Background()))
 
@@ -198,7 +198,7 @@ func BenchmarkLoadBlob(b *testing.B) {
 		var err error
 		buf, err = repo.LoadBlob(context.TODO(), restic.DataBlob, id, buf)
 
-		// Checking the SHA-256 with restic.Hash can make up 38% of the time
+		// Checking the SHA-256 with id.Hash can make up 38% of the time
 		// spent in this loop, so pause the timer.
 		b.StopTimer()
 		rtest.OK(b, err)
@@ -206,7 +206,7 @@ func BenchmarkLoadBlob(b *testing.B) {
 			b.Errorf("wanted %d bytes, got %d", length, len(buf))
 		}
 
-		id2 := restic.Hash(buf)
+		id2 := id.Hash(buf)
 		if !id.Equal(id2) {
 			b.Errorf("wrong data returned, wanted %v, got %v", id.Str(), id2.Str())
 		}
@@ -223,9 +223,9 @@ func BenchmarkLoadAndDecrypt(b *testing.B) {
 	_, err := io.ReadFull(rnd, buf)
 	rtest.OK(b, err)
 
-	dataID := restic.Hash(buf)
+	dataID := id.Hash(buf)
 
-	storageID, err := repo.SaveUnpacked(context.TODO(), restic.DataFile, buf)
+	storageID, err := repo.SaveUnpacked(context.TODO(), file.DataFile, buf)
 	rtest.OK(b, err)
 	// rtest.OK(b, repo.Flush())
 
@@ -233,7 +233,7 @@ func BenchmarkLoadAndDecrypt(b *testing.B) {
 	b.SetBytes(int64(length))
 
 	for i := 0; i < b.N; i++ {
-		data, err := repo.LoadAndDecrypt(context.TODO(), nil, restic.DataFile, storageID)
+		data, err := repo.LoadAndDecrypt(context.TODO(), nil, file.DataFile, storageID)
 		rtest.OK(b, err)
 
 		// See comment in BenchmarkLoadBlob.
@@ -242,7 +242,7 @@ func BenchmarkLoadAndDecrypt(b *testing.B) {
 			b.Errorf("wanted %d bytes, got %d", length, len(data))
 		}
 
-		id2 := restic.Hash(data)
+		id2 := id.Hash(data)
 		if !dataID.Equal(id2) {
 			b.Errorf("wrong data returned, wanted %v, got %v", storageID.Str(), id2.Str())
 		}
@@ -263,13 +263,13 @@ func TestLoadJSONUnpacked(t *testing.T) {
 	sn.Hostname = "foobar"
 	sn.Username = "test!"
 
-	id, err := repo.SaveJSONUnpacked(context.TODO(), restic.SnapshotFile, &sn)
+	id, err := repo.SaveJSONUnpacked(context.TODO(), file.SnapshotFile, &sn)
 	rtest.OK(t, err)
 
 	var sn2 restic.Snapshot
 
 	// restore
-	err = repo.LoadJSONUnpacked(context.TODO(), restic.SnapshotFile, id, &sn2)
+	err = repo.LoadJSONUnpacked(context.TODO(), file.SnapshotFile, id, &sn2)
 	rtest.OK(t, err)
 
 	rtest.Equals(t, sn.Hostname, sn2.Hostname)
@@ -310,7 +310,7 @@ func BenchmarkLoadIndex(b *testing.B) {
 	rtest.OK(b, err)
 
 	b.Logf("index saved as %v (%v entries)", id.Str(), idx.Count(restic.DataBlob))
-	fi, err := repo.Backend().Stat(context.TODO(), restic.Handle{Type: restic.IndexFile, Name: id.String()})
+	fi, err := repo.Backend().Stat(context.TODO(), file.Handle{Type: file.IndexFile, Name: id.String()})
 	rtest.OK(b, err)
 	b.Logf("filesize is %v", fi.Size)
 
@@ -331,7 +331,7 @@ func saveRandomDataBlobs(t testing.TB, repo restic.Repository, num int, sizeMax 
 		_, err := io.ReadFull(rnd, buf)
 		rtest.OK(t, err)
 
-		_, _, err = repo.SaveBlob(context.TODO(), restic.DataBlob, buf, restic.ID{}, false)
+		_, _, err = repo.SaveBlob(context.TODO(), restic.DataBlob, buf, id.ID{}, false)
 		rtest.OK(t, err)
 	}
 }
@@ -364,15 +364,15 @@ func TestRepositoryIncrementalIndex(t *testing.T) {
 	// save final index
 	rtest.OK(t, repo.SaveIndex(context.TODO()))
 
-	packEntries := make(map[restic.ID]map[restic.ID]struct{})
+	packEntries := make(map[id.ID]map[id.ID]struct{})
 
-	err := repo.List(context.TODO(), restic.IndexFile, func(id restic.ID, size int64) error {
+	err := repo.List(context.TODO(), file.IndexFile, func(id id.ID, size int64) error {
 		idx, err := repository.LoadIndex(context.TODO(), repo, id)
 		rtest.OK(t, err)
 
 		for pb := range idx.Each(context.TODO()) {
 			if _, ok := packEntries[pb.PackID]; !ok {
-				packEntries[pb.PackID] = make(map[restic.ID]struct{})
+				packEntries[pb.PackID] = make(map[id.ID]struct{})
 			}
 
 			packEntries[pb.PackID][id] = struct{}{}
@@ -394,7 +394,7 @@ type backend struct {
 	rd io.Reader
 }
 
-func (be backend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be backend) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return fn(be.rd)
 }
 
@@ -402,7 +402,7 @@ type retryBackend struct {
 	buf []byte
 }
 
-func (be retryBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be retryBackend) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	err := fn(bytes.NewReader(be.buf[:len(be.buf)/2]))
 	if err != nil {
 		return err
@@ -434,12 +434,12 @@ func TestDownloadAndHash(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			f, id, size, err := repository.DownloadAndHash(context.TODO(), test.be, restic.Handle{})
+			f, id, size, err := repository.DownloadAndHash(context.TODO(), test.be, file.Handle{})
 			if err != nil {
 				t.Error(err)
 			}
 
-			want := restic.Hash(test.want)
+			want := id.Hash(test.want)
 			if !want.Equal(id) {
 				t.Errorf("wrong hash returned, want %v, got %v", want.Str(), id.Str())
 			}
@@ -482,7 +482,7 @@ func TestDownloadAndHashErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run("", func(t *testing.T) {
-			_, _, _, err := repository.DownloadAndHash(context.TODO(), test.be, restic.Handle{})
+			_, _, _, err := repository.DownloadAndHash(context.TODO(), test.be, file.Handle{})
 			if err == nil {
 				t.Fatalf("wanted error %q, got nil", test.err)
 			}

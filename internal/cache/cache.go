@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/restic"
 )
@@ -20,7 +21,7 @@ type Cache struct {
 	Path             string
 	Base             string
 	Created          bool
-	PerformReadahead func(restic.Handle) bool
+	PerformReadahead func(file.Handle) bool
 }
 
 const dirMode = 0700
@@ -49,10 +50,10 @@ const cacheVersion = 1
 // ensure Cache implements restic.Cache
 var _ restic.Cache = &Cache{}
 
-var cacheLayoutPaths = map[restic.FileType]string{
-	restic.DataFile:     "data",
-	restic.SnapshotFile: "snapshots",
-	restic.IndexFile:    "index",
+var cacheLayoutPaths = map[file.FileType]string{
+	file.DataFile:     "data",
+	file.SnapshotFile: "snapshots",
+	file.IndexFile:    "index",
 }
 
 const cachedirTagSignature = "Signature: 8a477f597d28d172789f06886806bc55\n"
@@ -154,7 +155,7 @@ func New(id string, basedir string) (c *Cache, err error) {
 		Path:    cachedir,
 		Base:    basedir,
 		Created: created,
-		PerformReadahead: func(restic.Handle) bool {
+		PerformReadahead: func(file.Handle) bool {
 			// do not perform readahead by default
 			return false
 		},

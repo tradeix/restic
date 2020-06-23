@@ -10,6 +10,7 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/fs"
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 )
 
@@ -25,7 +26,7 @@ type Restorer struct {
 var restorerAbortOnAllErrors = func(location string, err error) error { return err }
 
 // NewRestorer creates a restorer preloaded with the content from the snapshot id.
-func NewRestorer(repo restic.Repository, id restic.ID) (*Restorer, error) {
+func NewRestorer(repo restic.Repository, id id.ID) (*Restorer, error) {
 	r := &Restorer{
 		repo:         repo,
 		Error:        restorerAbortOnAllErrors,
@@ -50,7 +51,7 @@ type treeVisitor struct {
 
 // traverseTree traverses a tree from the repo and calls treeVisitor.
 // target is the path in the file system, location within the snapshot.
-func (res *Restorer) traverseTree(ctx context.Context, target, location string, treeID restic.ID, visitor treeVisitor) error {
+func (res *Restorer) traverseTree(ctx context.Context, target, location string, treeID id.ID, visitor treeVisitor) error {
 	debug.Log("%v %v %v", target, location, treeID)
 	tree, err := res.repo.LoadTree(ctx, treeID)
 	if err != nil {
@@ -321,7 +322,7 @@ func (res *Restorer) VerifyFiles(ctx context.Context, dst string) (int, error) {
 					_ = file.Close()
 					return err
 				}
-				if !blobID.Equal(restic.Hash(buf)) {
+				if !blobID.Equal(id.Hash(buf)) {
 					_ = file.Close()
 					return errors.Errorf("Unexpected contents starting at offset %d", offset)
 				}

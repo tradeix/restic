@@ -6,6 +6,9 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/lock"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/index"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -81,8 +84,8 @@ func runPrune(gopts GlobalOptions) error {
 		return err
 	}
 
-	lock, err := lockRepoExclusive(repo)
-	defer unlockRepo(lock)
+	lck, err := lock.LockRepoExclusive(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}
@@ -128,7 +131,7 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 	}
 
 	Verbosef("counting files in repo\n")
-	err = repo.List(ctx, restic.DataFile, func(restic.ID, int64) error {
+	err = repo.List(ctx, file.DataFile, func(rid.ID, int64) error {
 		stats.packs++
 		return nil
 	})
@@ -139,7 +142,7 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 	Verbosef("building new index for repo\n")
 
 	bar := newProgressMax(!gopts.Quiet, uint64(stats.packs), "packs")
-	idx, invalidFiles, err := index.New(ctx, repo, restic.NewIDSet(), bar)
+	idx, invalidFiles, err := index.New(ctx, repo, rid.NewIDSet(), bar)
 	if err != nil {
 		return err
 	}
@@ -220,7 +223,7 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 		len(usedBlobs), stats.blobs, stats.blobs-len(usedBlobs))
 
 	// find packs that need a rewrite
-	rewritePacks := restic.NewIDSet()
+	rewritePacks := rid.NewIDSet()
 	for _, pack := range idx.Packs {
 		if mixedBlobs(pack.Entries) {
 			rewritePacks.Insert(pack.ID)
@@ -243,7 +246,7 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 	removeBytes := duplicateBytes
 
 	// find packs that are unneeded
-	removePacks := restic.NewIDSet()
+	removePacks := rid.NewIDSet()
 
 	Verbosef("will remove %d invalid files\n", len(invalidFiles))
 	for _, id := range invalidFiles {
@@ -279,7 +282,7 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 	Verbosef("will delete %d packs and rewrite %d packs, this frees %s\n",
 		len(removePacks), len(rewritePacks), formatBytes(uint64(removeBytes)))
 
-	var obsoletePacks restic.IDSet
+	var obsoletePacks rid.IDSet
 	if len(rewritePacks) != 0 {
 		bar = newProgressMax(!gopts.Quiet, uint64(len(rewritePacks)), "packs rewritten")
 		bar.Start()
@@ -300,7 +303,7 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 		bar = newProgressMax(!gopts.Quiet, uint64(len(removePacks)), "packs deleted")
 		bar.Start()
 		for packID := range removePacks {
-			h := restic.Handle{Type: restic.DataFile, Name: packID.String()}
+			h := file.Handle{Type: file.DataFile, Name: packID.String()}
 			err = repo.Backend().Remove(ctx, h)
 			if err != nil {
 				Warnf("unable to remove file %v from the repository\n", packID.Str())

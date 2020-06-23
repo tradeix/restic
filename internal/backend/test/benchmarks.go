@@ -10,10 +10,10 @@ import (
 	"github.com/restic/restic/internal/test"
 )
 
-func saveRandomFile(t testing.TB, be restic.Backend, length int) ([]byte, restic.Handle) {
+func saveRandomFile(t testing.TB, be restic.Backend, length int) ([]byte, file.Handle) {
 	data := test.Random(23, length)
-	id := restic.Hash(data)
-	handle := restic.Handle{Type: restic.DataFile, Name: id.String()}
+	id := id.Hash(data)
+	handle := file.Handle{Type: file.DataFile, Name: id.String()}
 	err := be.Save(context.TODO(), handle, restic.NewByteReader(data))
 	if err != nil {
 		t.Fatalf("Save() error: %+v", err)
@@ -21,7 +21,7 @@ func saveRandomFile(t testing.TB, be restic.Backend, length int) ([]byte, restic
 	return data, handle
 }
 
-func remove(t testing.TB, be restic.Backend, h restic.Handle) {
+func remove(t testing.TB, be restic.Backend, h file.Handle) {
 	if err := be.Remove(context.TODO(), h); err != nil {
 		t.Fatalf("Remove() returned error: %v", err)
 	}
@@ -145,8 +145,8 @@ func (s *Suite) BenchmarkSave(t *testing.B) {
 
 	length := 1<<24 + 2123
 	data := test.Random(23, length)
-	id := restic.Hash(data)
-	handle := restic.Handle{Type: restic.DataFile, Name: id.String()}
+	id := id.Hash(data)
+	handle := file.Handle{Type: file.DataFile, Name: id.String()}
 
 	rd := restic.NewByteReader(data)
 	t.SetBytes(int64(length))

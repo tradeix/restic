@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/lock"
 	"github.com/spf13/cobra"
 )
 
@@ -41,9 +41,9 @@ func runUnlock(opts UnlockOptions, gopts GlobalOptions) error {
 		return err
 	}
 
-	fn := restic.RemoveStaleLocks
+	fn := lock.RemoveStaleLocks
 	if opts.RemoveAll {
-		fn = restic.RemoveAllLocks
+		fn = lock.RemoveAllLocks
 	}
 
 	err = fn(gopts.ctx, repo)

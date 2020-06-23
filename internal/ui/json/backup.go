@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/archiver"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui"
 	"github.com/restic/restic/internal/ui/termstatus"
@@ -364,7 +365,7 @@ func (b *Backup) ReportTotal(item string, s archiver.ScanStats) {
 }
 
 // Finish prints the finishing messages.
-func (b *Backup) Finish(snapshotID restic.ID) {
+func (b *Backup) Finish(snapshotID rid.ID) {
 	close(b.finished)
 	b.print(summaryOutput{
 		MessageType:         "summary",

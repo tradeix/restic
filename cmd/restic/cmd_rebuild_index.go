@@ -4,7 +4,10 @@ import (
 	"context"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/index"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 
 	"github.com/spf13/cobra"
@@ -38,22 +41,22 @@ func runRebuildIndex(gopts GlobalOptions) error {
 		return err
 	}
 
-	lock, err := lockRepoExclusive(repo)
-	defer unlockRepo(lock)
+	lck, err := lock.LockRepoExclusive(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}
 
 	ctx, cancel := context.WithCancel(gopts.ctx)
 	defer cancel()
-	return rebuildIndex(ctx, repo, restic.NewIDSet())
+	return rebuildIndex(ctx, repo, rid.NewIDSet())
 }
 
-func rebuildIndex(ctx context.Context, repo restic.Repository, ignorePacks restic.IDSet) error {
+func rebuildIndex(ctx context.Context, repo restic.Repository, ignorePacks rid.IDSet) error {
 	Verbosef("counting files in repo\n")
 
 	var packs uint64
-	err := repo.List(ctx, restic.DataFile, func(restic.ID, int64) error {
+	err := repo.List(ctx, file.DataFile, func(rid.ID, int64) error {
 		packs++
 		return nil
 	})
@@ -75,8 +78,8 @@ func rebuildIndex(ctx context.Context, repo restic.Repository, ignorePacks resti
 
 	Verbosef("finding old index files\n")
 
-	var supersedes restic.IDs
-	err = repo.List(ctx, restic.IndexFile, func(id restic.ID, size int64) error {
+	var supersedes rid.IDs
+	err = repo.List(ctx, file.IndexFile, func(id rid.ID, size int64) error {
 		supersedes = append(supersedes, id)
 		return nil
 	})
@@ -94,8 +97,8 @@ func rebuildIndex(ctx context.Context, repo restic.Repository, ignorePacks resti
 	Verbosef("remove %d old index files\n", len(supersedes))
 
 	for _, id := range supersedes {
-		if err := repo.Backend().Remove(ctx, restic.Handle{
-			Type: restic.IndexFile,
+		if err := repo.Backend().Remove(ctx, file.Handle{
+			Type: file.IndexFile,
 			Name: id.String(),
 		}); err != nil {
 			Warnf("error removing old index %v: %v\n", id.Str(), err)

@@ -5,13 +5,14 @@ import (
 	"context"
 	"io"
 
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/restic"
 )
 
 // LoadAll reads all data stored in the backend for the handle into the given
 // buffer, which is truncated. If the buffer is not large enough or nil, a new
 // one is allocated.
-func LoadAll(ctx context.Context, buf []byte, be restic.Backend, h restic.Handle) ([]byte, error) {
+func LoadAll(ctx context.Context, buf []byte, be restic.Backend, h file.Handle) ([]byte, error) {
 	err := be.Load(ctx, h, 0, 0, func(rd io.Reader) error {
 		// make sure this is idempotent, in case an error occurs this function may be called multiple times!
 		wr := bytes.NewBuffer(buf[:0])
@@ -43,8 +44,8 @@ func LimitReadCloser(r io.ReadCloser, n int64) *LimitedReadCloser {
 }
 
 // DefaultLoad implements Backend.Load using lower-level openReader func
-func DefaultLoad(ctx context.Context, h restic.Handle, length int, offset int64,
-	openReader func(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error),
+func DefaultLoad(ctx context.Context, h file.Handle, length int, offset int64,
+	openReader func(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error),
 	fn func(rd io.Reader) error) error {
 	rd, err := openReader(ctx, h, length, offset)
 	if err != nil {

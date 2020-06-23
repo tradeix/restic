@@ -11,6 +11,8 @@ import (
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 )
 
@@ -38,21 +40,21 @@ type fileInfo struct {
 }
 
 type fileBlobInfo struct {
-	id     restic.ID // the blob id
+	id     id.ID // the blob id
 	offset int64     // blob offset in the file
 }
 
 // information about a data pack required to restore one or more files
 type packInfo struct {
-	id    restic.ID              // the pack id
+	id    id.ID              // the pack id
 	files map[*fileInfo]struct{} // set of files that use blobs from this pack
 }
 
 // fileRestorer restores set of files
 type fileRestorer struct {
 	key        *crypto.Key
-	idx        func(restic.ID, restic.BlobType) ([]restic.PackedBlob, bool)
-	packLoader func(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error
+	idx        func(id.ID, restic.BlobType) ([]restic.PackedBlob, bool)
+	packLoader func(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error
 
 	filesWriter *filesWriter
 
@@ -61,9 +63,9 @@ type fileRestorer struct {
 }
 
 func newFileRestorer(dst string,
-	packLoader func(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error,
+	packLoader func(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error,
 	key *crypto.Key,
-	idx func(restic.ID, restic.BlobType) ([]restic.PackedBlob, bool)) *fileRestorer {
+	idx func(id.ID, restic.BlobType) ([]restic.PackedBlob, bool)) *fileRestorer {
 
 	return &fileRestorer{
 		key:         key,
@@ -74,7 +76,7 @@ func newFileRestorer(dst string,
 	}
 }
 
-func (r *fileRestorer) addFile(location string, content restic.IDs) {
+func (r *fileRestorer) addFile(location string, content id.IDs) {
 	r.files = append(r.files, &fileInfo{location: location, blobs: content})
 }
 
@@ -82,7 +84,7 @@ func (r *fileRestorer) targetPath(location string) string {
 	return filepath.Join(r.dst, location)
 }
 
-func (r *fileRestorer) forEachBlob(blobIDs []restic.ID, fn func(packID restic.ID, packBlob restic.Blob)) error {
+func (r *fileRestorer) forEachBlob(blobIDs []id.ID, fn func(packID id.ID, packBlob restic.Blob)) error {
 	if len(blobIDs) == 0 {
 		return nil
 	}
@@ -100,18 +102,18 @@ func (r *fileRestorer) forEachBlob(blobIDs []restic.ID, fn func(packID restic.ID
 
 func (r *fileRestorer) restoreFiles(ctx context.Context) error {
 
-	packs := make(map[restic.ID]*packInfo) // all packs
+	packs := make(map[id.ID]*packInfo) // all packs
 
 	// create packInfo from fileInfo
 	for _, file := range r.files {
-		fileBlobs := file.blobs.(restic.IDs)
+		fileBlobs := file.blobs.(id.IDs)
 		largeFile := len(fileBlobs) > largeFileBlobCount
-		var packsMap map[restic.ID][]fileBlobInfo
+		var packsMap map[id.ID][]fileBlobInfo
 		if largeFile {
-			packsMap = make(map[restic.ID][]fileBlobInfo)
+			packsMap = make(map[id.ID][]fileBlobInfo)
 		}
 		fileOffset := int64(0)
-		err := r.forEachBlob(fileBlobs, func(packID restic.ID, blob restic.Blob) {
+		err := r.forEachBlob(fileBlobs, func(packID id.ID, blob restic.Blob) {
 			if largeFile {
 				packsMap[packID] = append(packsMap[packID], fileBlobInfo{id: blob.ID, offset: fileOffset})
 				fileOffset += int64(blob.Length) - crypto.Extension
@@ -176,7 +178,7 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) {
 
 	// calculate pack byte range and blob->[]files->[]offsets mappings
 	start, end := int64(math.MaxInt64), int64(0)
-	blobs := make(map[restic.ID]struct {
+	blobs := make(map[id.ID]struct {
 		offset int64                 // offset of the blob in the pack
 		length int                   // length of the blob
 		files  map[*fileInfo][]int64 // file -> offsets (plural!) of the blob in the file
@@ -198,15 +200,15 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) {
 			}
 			blobInfo.files[file] = append(blobInfo.files[file], fileOffset)
 		}
-		if fileBlobs, ok := file.blobs.(restic.IDs); ok {
+		if fileBlobs, ok := file.blobs.(id.IDs); ok {
 			fileOffset := int64(0)
-			r.forEachBlob(fileBlobs, func(packID restic.ID, blob restic.Blob) {
+			r.forEachBlob(fileBlobs, func(packID id.ID, blob restic.Blob) {
 				if packID.Equal(pack.id) {
 					addBlob(blob, fileOffset)
 				}
 				fileOffset += int64(blob.Length) - crypto.Extension
 			})
-		} else if packsMap, ok := file.blobs.(map[restic.ID][]fileBlobInfo); ok {
+		} else if packsMap, ok := file.blobs.(map[id.ID][]fileBlobInfo); ok {
 			for _, blob := range packsMap[pack.id] {
 				idxPacks, found := r.idx(blob.id, restic.DataBlob)
 				if found {
@@ -223,7 +225,7 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) {
 
 	packData := make([]byte, int(end-start))
 
-	h := restic.Handle{Type: restic.DataFile, Name: pack.id.String()}
+	h := file.Handle{Type: file.DataFile, Name: pack.id.String()}
 	err := r.packLoader(ctx, h, int(end-start), start, func(rd io.Reader) error {
 		l, err := io.ReadFull(rd, packData)
 		if err != nil {
@@ -289,7 +291,7 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) {
 	}
 }
 
-func (r *fileRestorer) loadBlob(rd io.ReaderAt, blobID restic.ID, offset int64, length int) ([]byte, error) {
+func (r *fileRestorer) loadBlob(rd io.ReaderAt, blobID id.ID, offset int64, length int) ([]byte, error) {
 	// TODO reconcile with Repository#loadBlob implementation
 
 	buf := make([]byte, length)
@@ -311,7 +313,7 @@ func (r *fileRestorer) loadBlob(rd io.ReaderAt, blobID restic.ID, offset int64, 
 	}
 
 	// check hash
-	if !restic.Hash(plaintext).Equal(blobID) {
+	if !id.Hash(plaintext).Equal(blobID) {
 		return nil, errors.Errorf("blob %v returned invalid hash", blobID)
 	}
 

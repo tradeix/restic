@@ -8,11 +8,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/id"
 )
 
-func (c *Cache) filename(h restic.Handle) string {
+func (c *Cache) filename(h file.Handle) string {
 	if len(h.Name) < 2 {
 		panic("Name is empty or too short")
 	}
@@ -20,7 +21,7 @@ func (c *Cache) filename(h restic.Handle) string {
 	return filepath.Join(c.Path, cacheLayoutPaths[h.Type], subdir, h.Name)
 }
 
-func (c *Cache) canBeCached(t restic.FileType) bool {
+func (c *Cache) canBeCached(t file.FileType) bool {
 	if c == nil {
 		return false
 	}
@@ -40,7 +41,7 @@ type readCloser struct {
 // Load returns a reader that yields the contents of the file with the
 // given handle. rd must be closed after use. If an error is returned, the
 // ReadCloser is nil.
-func (c *Cache) Load(h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (c *Cache) Load(h file.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load from cache: %v", h)
 	if !c.canBeCached(h.Type) {
 		return nil, errors.New("cannot be cached")
@@ -85,7 +86,7 @@ func (c *Cache) Load(h restic.Handle, length int, offset int64) (io.ReadCloser, 
 }
 
 // SaveWriter returns a writer for the cache object h. It must be closed after writing is finished.
-func (c *Cache) SaveWriter(h restic.Handle) (io.WriteCloser, error) {
+func (c *Cache) SaveWriter(h file.Handle) (io.WriteCloser, error) {
 	debug.Log("Save to cache: %v", h)
 	if !c.canBeCached(h.Type) {
 		return nil, errors.New("cannot be cached")
@@ -106,7 +107,7 @@ func (c *Cache) SaveWriter(h restic.Handle) (io.WriteCloser, error) {
 }
 
 // Save saves a file in the cache.
-func (c *Cache) Save(h restic.Handle, rd io.Reader) error {
+func (c *Cache) Save(h file.Handle, rd io.Reader) error {
 	debug.Log("Save to cache: %v", h)
 	if rd == nil {
 		return errors.New("Save() called with nil reader")
@@ -140,7 +141,7 @@ func (c *Cache) Save(h restic.Handle, rd io.Reader) error {
 }
 
 // Remove deletes a file. When the file is not cache, no error is returned.
-func (c *Cache) Remove(h restic.Handle) error {
+func (c *Cache) Remove(h file.Handle) error {
 	if !c.Has(h) {
 		return nil
 	}
@@ -150,7 +151,7 @@ func (c *Cache) Remove(h restic.Handle) error {
 
 // Clear removes all files of type t from the cache that are not contained in
 // the set valid.
-func (c *Cache) Clear(t restic.FileType, valid restic.IDSet) error {
+func (c *Cache) Clear(t file.FileType, valid id.IDSet) error {
 	debug.Log("Clearing cache for %v: %v valid files", t, len(valid))
 	if !c.canBeCached(t) {
 		return nil
@@ -166,7 +167,7 @@ func (c *Cache) Clear(t restic.FileType, valid restic.IDSet) error {
 			continue
 		}
 
-		if err = fs.Remove(c.filename(restic.Handle{Type: t, Name: id.String()})); err != nil {
+		if err = fs.Remove(c.filename(file.Handle{Type: t, Name: id.String()})); err != nil {
 			return err
 		}
 	}
@@ -179,12 +180,12 @@ func isFile(fi os.FileInfo) bool {
 }
 
 // list returns a list of all files of type T in the cache.
-func (c *Cache) list(t restic.FileType) (restic.IDSet, error) {
+func (c *Cache) list(t file.FileType) (id.IDSet, error) {
 	if !c.canBeCached(t) {
 		return nil, errors.New("cannot be cached")
 	}
 
-	list := restic.NewIDSet()
+	list := id.NewIDSet()
 	dir := filepath.Join(c.Path, cacheLayoutPaths[t])
 	err := filepath.Walk(dir, func(name string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -195,7 +196,7 @@ func (c *Cache) list(t restic.FileType) (restic.IDSet, error) {
 			return nil
 		}
 
-		id, err := restic.ParseID(filepath.Base(name))
+		id, err := id.ParseID(filepath.Base(name))
 		if err != nil {
 			return nil
 		}
@@ -208,7 +209,7 @@ func (c *Cache) list(t restic.FileType) (restic.IDSet, error) {
 }
 
 // Has returns true if the file is cached.
-func (c *Cache) Has(h restic.Handle) bool {
+func (c *Cache) Has(h file.Handle) bool {
 	if !c.canBeCached(h.Type) {
 		return false
 	}

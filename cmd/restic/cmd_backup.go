@@ -21,6 +21,8 @@ import (
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/textfile"
@@ -369,7 +371,7 @@ func collectTargets(opts BackupOptions, args []string) (targets []string, err er
 
 // parent returns the ID of the parent snapshot. If there is none, nil is
 // returned.
-func findParentSnapshot(ctx context.Context, repo restic.Repository, opts BackupOptions, targets []string) (parentID *restic.ID, err error) {
+func findParentSnapshot(ctx context.Context, repo restic.Repository, opts BackupOptions, targets []string) (parentID *rid.ID, err error) {
 	// Force using a parent
 	if !opts.Force && opts.Parent != "" {
 		id, err := restic.FindSnapshot(repo, opts.Parent)
@@ -432,7 +434,7 @@ func runBackup(opts BackupOptions, gopts GlobalOptions, term *termstatus.Termina
 		SetMinUpdatePause(d time.Duration)
 		Run(ctx context.Context) error
 		Error(item string, fi os.FileInfo, err error) error
-		Finish(snapshotID restic.ID)
+		Finish(snapshotID rid.ID)
 
 		// ui.StdioWrapper
 		Stdout() io.WriteCloser
@@ -474,8 +476,8 @@ func runBackup(opts BackupOptions, gopts GlobalOptions, term *termstatus.Termina
 	if !gopts.JSON {
 		p.V("lock repository")
 	}
-	lock, err := lockRepo(repo)
-	defer unlockRepo(lock)
+	lck, err := lock.LockRepo(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}
@@ -564,7 +566,7 @@ func runBackup(opts BackupOptions, gopts GlobalOptions, term *termstatus.Termina
 	arch.IgnoreInode = opts.IgnoreInode
 
 	if parentSnapshotID == nil {
-		parentSnapshotID = &restic.ID{}
+		parentSnapshotID = &rid.ID{}
 	}
 
 	snapshotOpts := archiver.SnapshotOptions{

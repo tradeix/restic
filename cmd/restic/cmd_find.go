@@ -10,7 +10,10 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/filter"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/walker"
 )
@@ -250,7 +253,7 @@ type Finder struct {
 	repo        restic.Repository
 	pat         findPattern
 	out         statefulOutput
-	ignoreTrees restic.IDSet
+	ignoreTrees rid.IDSet
 	blobIDs     map[string]struct{}
 	treeIDs     map[string]struct{}
 	itemsFound  int
@@ -264,7 +267,7 @@ func (f *Finder) findInSnapshot(ctx context.Context, sn *restic.Snapshot) error 
 	}
 
 	f.out.newsn = sn
-	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID rid.ID, nodepath string, node *restic.Node, err error) (bool, error) {
 		if err != nil {
 			debug.Log("Error loading tree %v: %v", parentTreeID, err)
 
@@ -348,7 +351,7 @@ func (f *Finder) findIDs(ctx context.Context, sn *restic.Snapshot) error {
 	}
 
 	f.out.newsn = sn
-	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID rid.ID, nodepath string, node *restic.Node, err error) (bool, error) {
 		if err != nil {
 			debug.Log("Error loading tree %v: %v", parentTreeID, err)
 
@@ -417,7 +420,7 @@ func (f *Finder) packsToBlobs(ctx context.Context, packs []string) error {
 	packsFound := 0
 
 	debug.Log("Looking for packs...")
-	err := f.repo.List(ctx, restic.DataFile, func(id restic.ID, size int64) error {
+	err := f.repo.List(ctx, file.DataFile, func(id rid.ID, size int64) error {
 		if allPacksFound {
 			return nil
 		}
@@ -459,7 +462,7 @@ func (f *Finder) packsToBlobs(ctx context.Context, packs []string) error {
 func (f *Finder) findObjectPack(ctx context.Context, id string, t restic.BlobType) {
 	idx := f.repo.Index()
 
-	rid, err := restic.ParseID(id)
+	rid, err := rid.ParseID(id)
 	if err != nil {
 		Printf("Note: cannot find pack for object '%s', unable to parse ID: %v\n", id, err)
 		return
@@ -529,8 +532,8 @@ func runFind(opts FindOptions, gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err :=lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
@@ -547,7 +550,7 @@ func runFind(opts FindOptions, gopts GlobalOptions, args []string) error {
 		repo:        repo,
 		pat:         pat,
 		out:         statefulOutput{ListLong: opts.ListLong, JSON: globalOptions.JSON},
-		ignoreTrees: restic.NewIDSet(),
+		ignoreTrees: rid.NewIDSet(),
 	}
 
 	if opts.BlobID {

@@ -11,6 +11,8 @@ import (
 
 	"github.com/restic/restic/internal/checker"
 	"github.com/restic/restic/internal/errors"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/restic"
 )
@@ -189,8 +191,8 @@ func runCheck(opts CheckOptions, gopts GlobalOptions, args []string) error {
 
 	if !gopts.NoLock {
 		Verbosef("create exclusive lock for repository\n")
-		lock, err := lockRepoExclusive(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepoExclusive(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
@@ -265,7 +267,7 @@ func runCheck(opts CheckOptions, gopts GlobalOptions, args []string) error {
 	}
 
 	doReadData := func(bucket, totalBuckets uint) {
-		packs := restic.IDSet{}
+		packs := rid.IDSet{}
 		for pack := range chkr.GetPacks() {
 			// If we ever check more than the first byte
 			// of pack, update totalBucketsMax.

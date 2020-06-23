@@ -7,6 +7,8 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 )
@@ -82,7 +84,7 @@ func changeTags(ctx context.Context, repo *repository.Repository, sn *restic.Sna
 		}
 
 		// Save the new snapshot.
-		id, err := repo.SaveJSONUnpacked(ctx, restic.SnapshotFile, sn)
+		id, err := repo.SaveJSONUnpacked(ctx, file.SnapshotFile, sn)
 		if err != nil {
 			return false, err
 		}
@@ -94,7 +96,7 @@ func changeTags(ctx context.Context, repo *repository.Repository, sn *restic.Sna
 		}
 
 		// Remove the old snapshot.
-		h := restic.Handle{Type: restic.SnapshotFile, Name: sn.ID().String()}
+		h := file.Handle{Type: file.SnapshotFile, Name: sn.ID().String()}
 		if err = repo.Backend().Remove(ctx, h); err != nil {
 			return false, err
 		}
@@ -119,8 +121,8 @@ func runTag(opts TagOptions, gopts GlobalOptions, args []string) error {
 
 	if !gopts.NoLock {
 		Verbosef("create exclusive lock for repository\n")
-		lock, err := lockRepoExclusive(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepoExclusive(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}

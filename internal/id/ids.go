@@ -1,4 +1,4 @@
-package restic
+package id
 
 import (
 	"encoding/hex"

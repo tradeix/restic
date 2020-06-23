@@ -11,6 +11,7 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 
 	resticfs "github.com/restic/restic/internal/fs"
@@ -90,8 +91,8 @@ func mount(opts MountOptions, gopts GlobalOptions, mountpoint string) error {
 		return err
 	}
 
-	lock, err := lockRepo(repo)
-	defer unlockRepo(lock)
+	lck, err := lock.LockRepo(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}

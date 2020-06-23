@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui/table"
 	"github.com/spf13/cobra"
@@ -61,8 +63,8 @@ func runSnapshots(opts SnapshotOptions, gopts GlobalOptions, args []string) erro
 	}
 
 	if !gopts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
@@ -150,7 +152,7 @@ func FilterLastSnapshots(list restic.Snapshots) restic.Snapshots {
 func PrintSnapshots(stdout io.Writer, list restic.Snapshots, reasons []restic.KeepReason, compact bool) {
 	// keep the reasons a snasphot is being kept in a map, so that it doesn't
 	// get lost when the list of snapshots is sorted
-	keepReasons := make(map[restic.ID]restic.KeepReason, len(reasons))
+	keepReasons := make(map[rid.ID]restic.KeepReason, len(reasons))
 	if len(reasons) > 0 {
 		for i, sn := range list {
 			id := sn.ID()
@@ -286,7 +288,7 @@ func PrintSnapshotGroupHeader(stdout io.Writer, groupKeyJSON string) error {
 type Snapshot struct {
 	*restic.Snapshot
 
-	ID      *restic.ID `json:"id"`
+	ID      *rid.ID `json:"id"`
 	ShortID string     `json:"short_id"`
 }
 

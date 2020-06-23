@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/restic"
 )
 
@@ -45,7 +46,7 @@ func (be *ErrorBackend) fail(p float32) bool {
 }
 
 // Save stores the data in the backend under the given handle.
-func (be *ErrorBackend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (be *ErrorBackend) Save(ctx context.Context, h file.Handle, rd restic.RewindReader) error {
 	if be.fail(be.FailSave) {
 		return errors.Errorf("Save(%v) random error induced", h)
 	}
@@ -66,7 +67,7 @@ func (be *ErrorBackend) Save(ctx context.Context, h restic.Handle, rd restic.Rew
 // given offset. If length is larger than zero, only a portion of the file
 // is returned. rd must be closed after use. If an error is returned, the
 // ReadCloser must be nil.
-func (be *ErrorBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, consumer func(rd io.Reader) error) error {
+func (be *ErrorBackend) Load(ctx context.Context, h file.Handle, length int, offset int64, consumer func(rd io.Reader) error) error {
 	if be.fail(be.FailLoad) {
 		return errors.Errorf("Load(%v, %v, %v) random error induced", h, length, offset)
 	}
@@ -75,7 +76,7 @@ func (be *ErrorBackend) Load(ctx context.Context, h restic.Handle, length int, o
 }
 
 // Stat returns information about the File identified by h.
-func (be *ErrorBackend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, error) {
+func (be *ErrorBackend) Stat(ctx context.Context, h file.Handle) (restic.FileInfo, error) {
 	if be.fail(be.FailLoad) {
 		return restic.FileInfo{}, errors.Errorf("Stat(%v) random error induced", h)
 	}

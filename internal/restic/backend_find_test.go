@@ -6,10 +6,10 @@ import (
 )
 
 type mockBackend struct {
-	list func(context.Context, FileType, func(FileInfo) error) error
+	list func(context.Context, file.FileType, func(FileInfo) error) error
 }
 
-func (m mockBackend) List(ctx context.Context, t FileType, fn func(FileInfo) error) error {
+func (m mockBackend) List(ctx context.Context, t file.FileType, fn func(FileInfo) error) error {
 	return m.list(ctx, t, fn)
 }
 
@@ -28,7 +28,7 @@ func TestFind(t *testing.T) {
 	list := samples
 
 	m := mockBackend{}
-	m.list = func(ctx context.Context, t FileType, fn func(FileInfo) error) error {
+	m.list = func(ctx context.Context, t file.FileType, fn func(FileInfo) error) error {
 		for _, id := range list {
 			err := fn(FileInfo{Name: id.String()})
 			if err != nil {
@@ -38,7 +38,7 @@ func TestFind(t *testing.T) {
 		return nil
 	}
 
-	f, err := Find(m, SnapshotFile, "20bdc1402a6fc9b633aa")
+	f, err := Find(m, file.SnapshotFile, "20bdc1402a6fc9b633aa")
 	if err != nil {
 		t.Error(err)
 	}
@@ -47,7 +47,7 @@ func TestFind(t *testing.T) {
 		t.Errorf("Wrong match returned want %s, got %s", expected_match, f)
 	}
 
-	f, err = Find(m, SnapshotFile, "NotAPrefix")
+	f, err = Find(m, file.SnapshotFile, "NotAPrefix")
 	if err != ErrNoIDPrefixFound {
 		t.Error("Expected no snapshots to be found.")
 	}
@@ -57,7 +57,7 @@ func TestFind(t *testing.T) {
 
 	// Try to match with a prefix longer than any ID.
 	extra_length_id := samples[0].String() + "f"
-	f, err = Find(m, SnapshotFile, extra_length_id)
+	f, err = Find(m, file.SnapshotFile, extra_length_id)
 	if err != ErrNoIDPrefixFound {
 		t.Error("Expected no snapshots to be matched.")
 	}
@@ -66,7 +66,7 @@ func TestFind(t *testing.T) {
 	}
 
 	// Use a prefix that will match the prefix of multiple Ids in `samples`.
-	f, err = Find(m, SnapshotFile, "20bdc140")
+	f, err = Find(m, file.SnapshotFile, "20bdc140")
 	if err != ErrMultipleIDMatches {
 		t.Error("Expected multiple snapshots to be matched.")
 	}
@@ -79,7 +79,7 @@ func TestPrefixLength(t *testing.T) {
 	list := samples
 
 	m := mockBackend{}
-	m.list = func(ctx context.Context, t FileType, fn func(FileInfo) error) error {
+	m.list = func(ctx context.Context, t file.FileType, fn func(FileInfo) error) error {
 		for _, id := range list {
 			err := fn(FileInfo{Name: id.String()})
 			if err != nil {
@@ -89,7 +89,7 @@ func TestPrefixLength(t *testing.T) {
 		return nil
 	}
 
-	l, err := PrefixLength(m, SnapshotFile)
+	l, err := PrefixLength(m, file.SnapshotFile)
 	if err != nil {
 		t.Error(err)
 	}
@@ -98,7 +98,7 @@ func TestPrefixLength(t *testing.T) {
 	}
 
 	list = samples[:3]
-	l, err = PrefixLength(m, SnapshotFile)
+	l, err = PrefixLength(m, file.SnapshotFile)
 	if err != nil {
 		t.Error(err)
 	}
@@ -107,7 +107,7 @@ func TestPrefixLength(t *testing.T) {
 	}
 
 	list = samples[3:]
-	l, err = PrefixLength(m, SnapshotFile)
+	l, err = PrefixLength(m, file.SnapshotFile)
 	if err != nil {
 		t.Error(err)
 	}

@@ -77,8 +77,8 @@ func TestMissingPack(t *testing.T) {
 
 	repo := repository.TestOpenLocal(t, repodir)
 
-	packHandle := restic.Handle{
-		Type: restic.DataFile,
+	packHandle := file.Handle{
+		Type: file.DataFile,
 		Name: "657f7fb64f6a854fff6fe9279998ee09034901eded4e6db9bcee0e59745bbce6",
 	}
 	test.OK(t, repo.Backend().Remove(context.TODO(), packHandle))
@@ -113,8 +113,8 @@ func TestUnreferencedPack(t *testing.T) {
 
 	// index 3f1a only references pack 60e0
 	packID := "60e0438dcb978ec6860cc1f8c43da648170ee9129af8f650f876bad19f8f788e"
-	indexHandle := restic.Handle{
-		Type: restic.IndexFile,
+	indexHandle := file.Handle{
+		Type: file.IndexFile,
 		Name: "3f1abfcb79c6f7d0a3be517d2c83c8562fba64ef2c8e9a3544b4edaf8b5e3b44",
 	}
 	test.OK(t, repo.Backend().Remove(context.TODO(), indexHandle))
@@ -147,13 +147,13 @@ func TestUnreferencedBlobs(t *testing.T) {
 
 	repo := repository.TestOpenLocal(t, repodir)
 
-	snapshotHandle := restic.Handle{
-		Type: restic.SnapshotFile,
+	snapshotHandle := file.Handle{
+		Type: file.SnapshotFile,
 		Name: "51d249d28815200d59e4be7b3f21a157b864dc343353df9d8e498220c2499b02",
 	}
 	test.OK(t, repo.Backend().Remove(context.TODO(), snapshotHandle))
 
-	unusedBlobsBySnapshot := restic.IDs{
+	unusedBlobsBySnapshot := id.IDs{
 		restic.TestParseID("58c748bbe2929fdf30c73262bd8313fe828f8925b05d1d4a87fe109082acb849"),
 		restic.TestParseID("988a272ab9768182abfd1fe7d7a7b68967825f0b861d3b36156795832c772235"),
 		restic.TestParseID("c01952de4d91da1b1b80bc6e06eaa4ec21523f4853b69dc8231708b9b7ec62d8"),
@@ -192,8 +192,8 @@ func TestModifiedIndex(t *testing.T) {
 	done := make(chan struct{})
 	defer close(done)
 
-	h := restic.Handle{
-		Type: restic.IndexFile,
+	h := file.Handle{
+		Type: file.IndexFile,
 		Name: "90f838b4ac28735fda8644fe6a08dbc742e57aaf81b30977b4fefa357010eafd",
 	}
 
@@ -222,8 +222,8 @@ func TestModifiedIndex(t *testing.T) {
 
 	// save the index again with a modified name so that the hash doesn't match
 	// the content any more
-	h2 := restic.Handle{
-		Type: restic.IndexFile,
+	h2 := file.Handle{
+		Type: file.IndexFile,
 		Name: "80f838b4ac28735fda8644fe6a08dbc742e57aaf81b30977b4fefa357010eafd",
 	}
 
@@ -290,7 +290,7 @@ type errorBackend struct {
 	ProduceErrors bool
 }
 
-func (b errorBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, consumer func(rd io.Reader) error) error {
+func (b errorBackend) Load(ctx context.Context, h file.Handle, length int, offset int64, consumer func(rd io.Reader) error) error {
 	return b.Backend.Load(ctx, h, length, offset, func(rd io.Reader) error {
 		if b.ProduceErrors {
 			return consumer(errorReadCloser{rd})

@@ -3,7 +3,7 @@ package cache
 import (
 	"testing"
 
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/test"
 )
 
@@ -12,7 +12,7 @@ import (
 func TestNewCache(t testing.TB) (*Cache, func()) {
 	dir, cleanup := test.TempDir(t)
 	t.Logf("created new cache at %v", dir)
-	cache, err := New(restic.NewRandomID().String(), dir)
+	cache, err := New(id.NewRandomID().String(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}

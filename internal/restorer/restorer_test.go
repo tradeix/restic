@@ -20,7 +20,7 @@ type Node interface{}
 
 type Snapshot struct {
 	Nodes  map[string]Node
-	treeID restic.ID
+	treeID id.ID
 }
 
 type File struct {
@@ -34,11 +34,11 @@ type Dir struct {
 	Mode  os.FileMode
 }
 
-func saveFile(t testing.TB, repo restic.Repository, node File) restic.ID {
+func saveFile(t testing.TB, repo restic.Repository, node File) id.ID {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	id, _, err := repo.SaveBlob(ctx, restic.DataBlob, []byte(node.Data), restic.ID{}, false)
+	id, _, err := repo.SaveBlob(ctx, restic.DataBlob, []byte(node.Data), id.ID{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func saveFile(t testing.TB, repo restic.Repository, node File) restic.ID {
 	return id
 }
 
-func saveDir(t testing.TB, repo restic.Repository, nodes map[string]Node, inode uint64) restic.ID {
+func saveDir(t testing.TB, repo restic.Repository, nodes map[string]Node, inode uint64) id.ID {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -63,7 +63,7 @@ func saveDir(t testing.TB, repo restic.Repository, nodes map[string]Node, inode 
 			if lc == 0 {
 				lc = 1
 			}
-			fc := []restic.ID{}
+			fc := []id.ID{}
 			if len(n.(File).Data) > 0 {
 				fc = append(fc, saveFile(t, repo, node))
 			}
@@ -107,7 +107,7 @@ func saveDir(t testing.TB, repo restic.Repository, nodes map[string]Node, inode 
 	return id
 }
 
-func saveSnapshot(t testing.TB, repo restic.Repository, snapshot Snapshot) (*restic.Snapshot, restic.ID) {
+func saveSnapshot(t testing.TB, repo restic.Repository, snapshot Snapshot) (*restic.Snapshot, id.ID) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -124,7 +124,7 @@ func saveSnapshot(t testing.TB, repo restic.Repository, snapshot Snapshot) (*res
 	}
 
 	sn.Tree = &treeID
-	id, err := repo.SaveJSONUnpacked(ctx, restic.SnapshotFile, sn)
+	id, err := repo.SaveJSONUnpacked(ctx, file.SnapshotFile, sn)
 	if err != nil {
 		t.Fatal(err)
 	}

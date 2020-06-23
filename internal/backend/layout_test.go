@@ -19,79 +19,79 @@ func TestDefaultLayout(t *testing.T) {
 	var tests = []struct {
 		path string
 		join func(...string) string
-		restic.Handle
+		file.Handle
 		filename string
 	}{
 		{
 			tempdir,
 			filepath.Join,
-			restic.Handle{Type: restic.DataFile, Name: "0123456"},
+			file.Handle{Type: file.DataFile, Name: "0123456"},
 			filepath.Join(tempdir, "data", "01", "0123456"),
 		},
 		{
 			tempdir,
 			filepath.Join,
-			restic.Handle{Type: restic.ConfigFile, Name: "CFG"},
+			file.Handle{Type: file.ConfigFile, Name: "CFG"},
 			filepath.Join(tempdir, "config"),
 		},
 		{
 			tempdir,
 			filepath.Join,
-			restic.Handle{Type: restic.SnapshotFile, Name: "123456"},
+			file.Handle{Type: file.SnapshotFile, Name: "123456"},
 			filepath.Join(tempdir, "snapshots", "123456"),
 		},
 		{
 			tempdir,
 			filepath.Join,
-			restic.Handle{Type: restic.IndexFile, Name: "123456"},
+			file.Handle{Type: file.IndexFile, Name: "123456"},
 			filepath.Join(tempdir, "index", "123456"),
 		},
 		{
 			tempdir,
 			filepath.Join,
-			restic.Handle{Type: restic.LockFile, Name: "123456"},
+			file.Handle{Type: file.LockFile, Name: "123456"},
 			filepath.Join(tempdir, "locks", "123456"),
 		},
 		{
 			tempdir,
 			filepath.Join,
-			restic.Handle{Type: restic.KeyFile, Name: "123456"},
+			file.Handle{Type: file.KeyFile, Name: "123456"},
 			filepath.Join(tempdir, "keys", "123456"),
 		},
 		{
 			"",
 			path.Join,
-			restic.Handle{Type: restic.DataFile, Name: "0123456"},
+			file.Handle{Type: file.DataFile, Name: "0123456"},
 			"data/01/0123456",
 		},
 		{
 			"",
 			path.Join,
-			restic.Handle{Type: restic.ConfigFile, Name: "CFG"},
+			file.Handle{Type: file.ConfigFile, Name: "CFG"},
 			"config",
 		},
 		{
 			"",
 			path.Join,
-			restic.Handle{Type: restic.SnapshotFile, Name: "123456"},
+			file.Handle{Type: file.SnapshotFile, Name: "123456"},
 			"snapshots/123456",
 		},
 		{
 			"",
 			path.Join,
-			restic.Handle{Type: restic.IndexFile, Name: "123456"},
+			file.Handle{Type: file.IndexFile, Name: "123456"},
 			"index/123456",
 		},
 		{
 			"",
 			path.Join,
-			restic.Handle{Type: restic.LockFile, Name: "123456"},
+			file.Handle{Type: file.LockFile, Name: "123456"},
 			"locks/123456",
 		},
 		{
 			"",
 			path.Join,
-			restic.Handle{Type: restic.KeyFile, Name: "123456"},
+			file.Handle{Type: file.KeyFile, Name: "123456"},
 			"keys/123456",
 		},
 	}
@@ -144,31 +144,31 @@ func TestRESTLayout(t *testing.T) {
 	defer cleanup()
 
 	var tests = []struct {
-		restic.Handle
+		file.Handle
 		filename string
 	}{
 		{
-			restic.Handle{Type: restic.DataFile, Name: "0123456"},
+			file.Handle{Type: file.DataFile, Name: "0123456"},
 			filepath.Join(path, "data", "0123456"),
 		},
 		{
-			restic.Handle{Type: restic.ConfigFile, Name: "CFG"},
+			file.Handle{Type: file.ConfigFile, Name: "CFG"},
 			filepath.Join(path, "config"),
 		},
 		{
-			restic.Handle{Type: restic.SnapshotFile, Name: "123456"},
+			file.Handle{Type: file.SnapshotFile, Name: "123456"},
 			filepath.Join(path, "snapshots", "123456"),
 		},
 		{
-			restic.Handle{Type: restic.IndexFile, Name: "123456"},
+			file.Handle{Type: file.IndexFile, Name: "123456"},
 			filepath.Join(path, "index", "123456"),
 		},
 		{
-			restic.Handle{Type: restic.LockFile, Name: "123456"},
+			file.Handle{Type: file.LockFile, Name: "123456"},
 			filepath.Join(path, "locks", "123456"),
 		},
 		{
-			restic.Handle{Type: restic.KeyFile, Name: "123456"},
+			file.Handle{Type: file.KeyFile, Name: "123456"},
 			filepath.Join(path, "keys", "123456"),
 		},
 	}
@@ -210,61 +210,61 @@ func TestRESTLayout(t *testing.T) {
 func TestRESTLayoutURLs(t *testing.T) {
 	var tests = []struct {
 		l   Layout
-		h   restic.Handle
+		h   file.Handle
 		fn  string
 		dir string
 	}{
 		{
 			&RESTLayout{URL: "https://hostname.foo", Path: "", Join: path.Join},
-			restic.Handle{Type: restic.DataFile, Name: "foobar"},
+			file.Handle{Type: file.DataFile, Name: "foobar"},
 			"https://hostname.foo/data/foobar",
 			"https://hostname.foo/data/",
 		},
 		{
 			&RESTLayout{URL: "https://hostname.foo:1234/prefix/repo", Path: "/", Join: path.Join},
-			restic.Handle{Type: restic.LockFile, Name: "foobar"},
+			file.Handle{Type: file.LockFile, Name: "foobar"},
 			"https://hostname.foo:1234/prefix/repo/locks/foobar",
 			"https://hostname.foo:1234/prefix/repo/locks/",
 		},
 		{
 			&RESTLayout{URL: "https://hostname.foo:1234/prefix/repo", Path: "/", Join: path.Join},
-			restic.Handle{Type: restic.ConfigFile, Name: "foobar"},
+			file.Handle{Type: file.ConfigFile, Name: "foobar"},
 			"https://hostname.foo:1234/prefix/repo/config",
 			"https://hostname.foo:1234/prefix/repo/",
 		},
 		{
 			&S3LegacyLayout{URL: "https://hostname.foo", Path: "/", Join: path.Join},
-			restic.Handle{Type: restic.DataFile, Name: "foobar"},
+			file.Handle{Type: file.DataFile, Name: "foobar"},
 			"https://hostname.foo/data/foobar",
 			"https://hostname.foo/data/",
 		},
 		{
 			&S3LegacyLayout{URL: "https://hostname.foo:1234/prefix/repo", Path: "", Join: path.Join},
-			restic.Handle{Type: restic.LockFile, Name: "foobar"},
+			file.Handle{Type: file.LockFile, Name: "foobar"},
 			"https://hostname.foo:1234/prefix/repo/lock/foobar",
 			"https://hostname.foo:1234/prefix/repo/lock/",
 		},
 		{
 			&S3LegacyLayout{URL: "https://hostname.foo:1234/prefix/repo", Path: "/", Join: path.Join},
-			restic.Handle{Type: restic.ConfigFile, Name: "foobar"},
+			file.Handle{Type: file.ConfigFile, Name: "foobar"},
 			"https://hostname.foo:1234/prefix/repo/config",
 			"https://hostname.foo:1234/prefix/repo/",
 		},
 		{
 			&S3LegacyLayout{URL: "", Path: "", Join: path.Join},
-			restic.Handle{Type: restic.DataFile, Name: "foobar"},
+			file.Handle{Type: file.DataFile, Name: "foobar"},
 			"data/foobar",
 			"data/",
 		},
 		{
 			&S3LegacyLayout{URL: "", Path: "", Join: path.Join},
-			restic.Handle{Type: restic.LockFile, Name: "foobar"},
+			file.Handle{Type: file.LockFile, Name: "foobar"},
 			"lock/foobar",
 			"lock/",
 		},
 		{
 			&S3LegacyLayout{URL: "", Path: "/", Join: path.Join},
-			restic.Handle{Type: restic.ConfigFile, Name: "foobar"},
+			file.Handle{Type: file.ConfigFile, Name: "foobar"},
 			"/config",
 			"/",
 		},
@@ -290,31 +290,31 @@ func TestS3LegacyLayout(t *testing.T) {
 	defer cleanup()
 
 	var tests = []struct {
-		restic.Handle
+		file.Handle
 		filename string
 	}{
 		{
-			restic.Handle{Type: restic.DataFile, Name: "0123456"},
+			file.Handle{Type: file.DataFile, Name: "0123456"},
 			filepath.Join(path, "data", "0123456"),
 		},
 		{
-			restic.Handle{Type: restic.ConfigFile, Name: "CFG"},
+			file.Handle{Type: file.ConfigFile, Name: "CFG"},
 			filepath.Join(path, "config"),
 		},
 		{
-			restic.Handle{Type: restic.SnapshotFile, Name: "123456"},
+			file.Handle{Type: file.SnapshotFile, Name: "123456"},
 			filepath.Join(path, "snapshot", "123456"),
 		},
 		{
-			restic.Handle{Type: restic.IndexFile, Name: "123456"},
+			file.Handle{Type: file.IndexFile, Name: "123456"},
 			filepath.Join(path, "index", "123456"),
 		},
 		{
-			restic.Handle{Type: restic.LockFile, Name: "123456"},
+			file.Handle{Type: file.LockFile, Name: "123456"},
 			filepath.Join(path, "lock", "123456"),
 		},
 		{
-			restic.Handle{Type: restic.KeyFile, Name: "123456"},
+			file.Handle{Type: file.KeyFile, Name: "123456"},
 			filepath.Join(path, "key", "123456"),
 		},
 	}
@@ -419,8 +419,8 @@ func TestParseLayout(t *testing.T) {
 			}
 
 			// test that the functions work (and don't panic)
-			_ = layout.Dirname(restic.Handle{Type: restic.DataFile})
-			_ = layout.Filename(restic.Handle{Type: restic.DataFile, Name: "1234"})
+			_ = layout.Dirname(file.Handle{Type: file.DataFile})
+			_ = layout.Filename(file.Handle{Type: file.DataFile, Name: "1234"})
 			_ = layout.Paths()
 
 			layoutName := fmt.Sprintf("%T", layout)

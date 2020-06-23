@@ -12,7 +12,9 @@ import (
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/hashing"
 	"github.com/restic/restic/internal/pack"
 	"github.com/restic/restic/internal/restic"
@@ -68,21 +70,21 @@ func (r *Repository) UseCache(c restic.Cache) {
 
 // PrefixLength returns the number of bytes required so that all prefixes of
 // all IDs of type t are unique.
-func (r *Repository) PrefixLength(t restic.FileType) (int, error) {
+func (r *Repository) PrefixLength(t file.FileType) (int, error) {
 	return restic.PrefixLength(r.be, t)
 }
 
 // LoadAndDecrypt loads and decrypts the file with the given type and ID, using
 // the supplied buffer (which must be empty). If the buffer is nil, a new
 // buffer will be allocated and returned.
-func (r *Repository) LoadAndDecrypt(ctx context.Context, buf []byte, t restic.FileType, id restic.ID) ([]byte, error) {
+func (r *Repository) LoadAndDecrypt(ctx context.Context, buf []byte, t file.FileType, id rid.ID) ([]byte, error) {
 	if len(buf) != 0 {
 		panic("buf is not empty")
 	}
 
 	debug.Log("load %v with id %v", t, id)
 
-	h := restic.Handle{Type: t, Name: id.String()}
+	h := file.Handle{Type: t, Name: id.String()}
 	err := r.be.Load(ctx, h, 0, 0, func(rd io.Reader) error {
 		// make sure this call is idempotent, in case an error occurs
 		wr := bytes.NewBuffer(buf[:0])
@@ -98,7 +100,7 @@ func (r *Repository) LoadAndDecrypt(ctx context.Context, buf []byte, t restic.Fi
 		return nil, err
 	}
 
-	if t != restic.ConfigFile && !restic.Hash(buf).Equal(id) {
+	if t != file.ConfigFile && !rid.Hash(buf).Equal(id) {
 		return nil, errors.Errorf("load %v: invalid data returned", h)
 	}
 
@@ -126,7 +128,7 @@ func (r *Repository) sortCachedPacks(blobs []restic.PackedBlob) []restic.PackedB
 	noncached := make([]restic.PackedBlob, 0, len(blobs)/2)
 
 	for _, blob := range blobs {
-		if r.Cache.Has(restic.Handle{Type: restic.DataFile, Name: blob.PackID.String()}) {
+		if r.Cache.Has(file.Handle{Type: file.DataFile, Name: blob.PackID.String()}) {
 			cached = append(cached, blob)
 			continue
 		}
@@ -138,7 +140,7 @@ func (r *Repository) sortCachedPacks(blobs []restic.PackedBlob) []restic.PackedB
 
 // LoadBlob loads a blob of type t from the repository.
 // It may use all of buf[:cap(buf)] as scratch space.
-func (r *Repository) LoadBlob(ctx context.Context, t restic.BlobType, id restic.ID, buf []byte) ([]byte, error) {
+func (r *Repository) LoadBlob(ctx context.Context, t restic.BlobType, id rid.ID, buf []byte) ([]byte, error) {
 	debug.Log("load %v with id %v (buf len %v, cap %d)", t, id, len(buf), cap(buf))
 
 	// lookup packs
@@ -160,7 +162,7 @@ func (r *Repository) LoadBlob(ctx context.Context, t restic.BlobType, id restic.
 		}
 
 		// load blob from pack
-		h := restic.Handle{Type: restic.DataFile, Name: blob.PackID.String()}
+		h := file.Handle{Type: file.DataFile, Name: blob.PackID.String()}
 
 		switch {
 		case cap(buf) < int(blob.Length):
@@ -192,7 +194,7 @@ func (r *Repository) LoadBlob(ctx context.Context, t restic.BlobType, id restic.
 		}
 
 		// check hash
-		if !restic.Hash(plaintext).Equal(id) {
+		if !rid.Hash(plaintext).Equal(id) {
 			lastError = errors.Errorf("blob %v returned invalid hash", id)
 			continue
 		}
@@ -211,7 +213,7 @@ func (r *Repository) LoadBlob(ctx context.Context, t restic.BlobType, id restic.
 
 // LoadJSONUnpacked decrypts the data and afterwards calls json.Unmarshal on
 // the item.
-func (r *Repository) LoadJSONUnpacked(ctx context.Context, t restic.FileType, id restic.ID, item interface{}) (err error) {
+func (r *Repository) LoadJSONUnpacked(ctx context.Context, t file.FileType, id rid.ID, item interface{}) (err error) {
 	buf, err := r.LoadAndDecrypt(ctx, nil, t, id)
 	if err != nil {
 		return err
@@ -221,14 +223,14 @@ func (r *Repository) LoadJSONUnpacked(ctx context.Context, t restic.FileType, id
 }
 
 // LookupBlobSize returns the size of blob id.
-func (r *Repository) LookupBlobSize(id restic.ID, tpe restic.BlobType) (uint, bool) {
+func (r *Repository) LookupBlobSize(id rid.ID, tpe restic.BlobType) (uint, bool) {
 	return r.idx.LookupSize(id, tpe)
 }
 
 // SaveAndEncrypt encrypts data and stores it to the backend as type t. If data
 // is small enough, it will be packed together with other small blobs.
 // The caller must ensure that the id matches the data.
-func (r *Repository) SaveAndEncrypt(ctx context.Context, t restic.BlobType, data []byte, id restic.ID) error {
+func (r *Repository) SaveAndEncrypt(ctx context.Context, t restic.BlobType, data []byte, id rid.ID) error {
 	debug.Log("save id %v (%v, %d bytes)", id, t, len(data))
 
 	nonce := crypto.NewRandomNonce()
@@ -275,11 +277,11 @@ func (r *Repository) SaveAndEncrypt(ctx context.Context, t restic.BlobType, data
 
 // SaveJSONUnpacked serialises item as JSON and encrypts and saves it in the
 // backend as type t, without a pack. It returns the storage hash.
-func (r *Repository) SaveJSONUnpacked(ctx context.Context, t restic.FileType, item interface{}) (restic.ID, error) {
+func (r *Repository) SaveJSONUnpacked(ctx context.Context, t file.FileType, item interface{}) (rid.ID, error) {
 	debug.Log("save new blob %v", t)
 	plaintext, err := json.Marshal(item)
 	if err != nil {
-		return restic.ID{}, errors.Wrap(err, "json.Marshal")
+		return rid.ID{}, errors.Wrap(err, "json.Marshal")
 	}
 
 	return r.SaveUnpacked(ctx, t, plaintext)
@@ -287,7 +289,7 @@ func (r *Repository) SaveJSONUnpacked(ctx context.Context, t restic.FileType, it
 
 // SaveUnpacked encrypts data and stores it in the backend. Returned is the
 // storage hash.
-func (r *Repository) SaveUnpacked(ctx context.Context, t restic.FileType, p []byte) (id restic.ID, err error) {
+func (r *Repository) SaveUnpacked(ctx context.Context, t file.FileType, p []byte) (id rid.ID, err error) {
 	ciphertext := restic.NewBlobBuffer(len(p))
 	ciphertext = ciphertext[:0]
 	nonce := crypto.NewRandomNonce()
@@ -295,13 +297,13 @@ func (r *Repository) SaveUnpacked(ctx context.Context, t restic.FileType, p []by
 
 	ciphertext = r.key.Seal(ciphertext, nonce, p, nil)
 
-	id = restic.Hash(ciphertext)
-	h := restic.Handle{Type: t, Name: id.String()}
+	id = rid.Hash(ciphertext)
+	h := file.Handle{Type: t, Name: id.String()}
 
 	err = r.be.Save(ctx, h, restic.NewByteReader(ciphertext))
 	if err != nil {
 		debug.Log("error saving blob %v: %v", h, err)
-		return restic.ID{}, err
+		return rid.ID{}, err
 	}
 
 	debug.Log("blob %v saved", h)
@@ -359,7 +361,7 @@ func (r *Repository) Index() restic.Index {
 func (r *Repository) SetIndex(i restic.Index) error {
 	r.idx = i.(*MasterIndex)
 
-	ids := restic.NewIDSet()
+	ids := rid.NewIDSet()
 	for _, idx := range r.idx.All() {
 		id, err := idx.ID()
 		if err != nil {
@@ -373,15 +375,15 @@ func (r *Repository) SetIndex(i restic.Index) error {
 }
 
 // SaveIndex saves an index in the repository.
-func SaveIndex(ctx context.Context, repo restic.Repository, index *Index) (restic.ID, error) {
+func SaveIndex(ctx context.Context, repo restic.Repository, index *Index) (rid.ID, error) {
 	buf := bytes.NewBuffer(nil)
 
 	err := index.Encode(buf)
 	if err != nil {
-		return restic.ID{}, err
+		return rid.ID{}, err
 	}
 
-	return repo.SaveUnpacked(ctx, restic.IndexFile, buf.Bytes())
+	return repo.SaveUnpacked(ctx, file.IndexFile, buf.Bytes())
 }
 
 // saveIndex saves all indexes in the backend.
@@ -422,7 +424,7 @@ func (r *Repository) LoadIndex(ctx context.Context) error {
 	wg, ctx := errgroup.WithContext(ctx)
 
 	type FileInfo struct {
-		restic.ID
+		rid.ID
 		Size int64
 	}
 	ch := make(chan FileInfo)
@@ -431,7 +433,7 @@ func (r *Repository) LoadIndex(ctx context.Context) error {
 	// send list of index files through ch, which is closed afterwards
 	wg.Go(func() error {
 		defer close(ch)
-		return r.List(ctx, restic.IndexFile, func(id restic.ID, size int64) error {
+		return r.List(ctx, file.IndexFile, func(id rid.ID, size int64) error {
 			select {
 			case <-ctx.Done():
 				return nil
@@ -476,7 +478,7 @@ func (r *Repository) LoadIndex(ctx context.Context) error {
 	})
 
 	// receive decoded indexes
-	validIndex := restic.NewIDSet()
+	validIndex := rid.NewIDSet()
 	wg.Go(func() error {
 		for idx := range indexCh {
 			id, err := idx.ID()
@@ -504,7 +506,7 @@ func (r *Repository) LoadIndex(ctx context.Context) error {
 
 // PrepareCache initializes the local cache. indexIDs is the list of IDs of
 // index files still present in the repo.
-func (r *Repository) PrepareCache(indexIDs restic.IDSet) error {
+func (r *Repository) PrepareCache(indexIDs rid.IDSet) error {
 	if r.Cache == nil {
 		return nil
 	}
@@ -512,12 +514,12 @@ func (r *Repository) PrepareCache(indexIDs restic.IDSet) error {
 	debug.Log("prepare cache with %d index files", len(indexIDs))
 
 	// clear old index files
-	err := r.Cache.Clear(restic.IndexFile, indexIDs)
+	err := r.Cache.Clear(file.IndexFile, indexIDs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error clearing index files in cache: %v\n", err)
 	}
 
-	packs := restic.NewIDSet()
+	packs := rid.NewIDSet()
 	for _, idx := range r.idx.All() {
 		for id := range idx.Packs() {
 			packs.Insert(id)
@@ -525,12 +527,12 @@ func (r *Repository) PrepareCache(indexIDs restic.IDSet) error {
 	}
 
 	// clear old data files
-	err = r.Cache.Clear(restic.DataFile, packs)
+	err = r.Cache.Clear(file.DataFile, packs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error clearing data files in cache: %v\n", err)
 	}
 
-	treePacks := restic.NewIDSet()
+	treePacks := rid.NewIDSet()
 	for _, idx := range r.idx.All() {
 		for _, id := range idx.TreePacks() {
 			treePacks.Insert(id)
@@ -540,13 +542,13 @@ func (r *Repository) PrepareCache(indexIDs restic.IDSet) error {
 	// use readahead
 	debug.Log("using readahead")
 	cache := r.Cache.(*cache.Cache)
-	cache.PerformReadahead = func(h restic.Handle) bool {
-		if h.Type != restic.DataFile {
+	cache.PerformReadahead = func(h file.Handle) bool {
+		if h.Type != file.DataFile {
 			debug.Log("no readahead for %v, is not data file", h)
 			return false
 		}
 
-		id, err := restic.ParseID(h.Name)
+		id, err := rid.ParseID(h.Name)
 		if err != nil {
 			debug.Log("no readahead for %v, invalid ID", h)
 			return false
@@ -564,7 +566,7 @@ func (r *Repository) PrepareCache(indexIDs restic.IDSet) error {
 }
 
 // LoadIndex loads the index id from backend and returns it.
-func LoadIndex(ctx context.Context, repo restic.Repository, id restic.ID) (*Index, error) {
+func LoadIndex(ctx context.Context, repo restic.Repository, id rid.ID) (*Index, error) {
 	idx, _, err := LoadIndexWithDecoder(ctx, repo, nil, id, DecodeIndex)
 	if err == nil {
 		return idx, nil
@@ -601,7 +603,7 @@ func (r *Repository) SearchKey(ctx context.Context, password string, maxKeys int
 // Init creates a new master key with the supplied password, initializes and
 // saves the repository config.
 func (r *Repository) Init(ctx context.Context, password string) error {
-	has, err := r.be.Test(ctx, restic.Handle{Type: restic.ConfigFile})
+	has, err := r.be.Test(ctx, file.Handle{Type: file.ConfigFile})
 	if err != nil {
 		return err
 	}
@@ -630,7 +632,7 @@ func (r *Repository) init(ctx context.Context, password string, cfg restic.Confi
 	r.treePM.key = key.master
 	r.keyName = key.Name()
 	r.cfg = cfg
-	_, err = r.SaveJSONUnpacked(ctx, restic.ConfigFile, cfg)
+	_, err = r.SaveJSONUnpacked(ctx, file.ConfigFile, cfg)
 	return err
 }
 
@@ -645,9 +647,9 @@ func (r *Repository) KeyName() string {
 }
 
 // List runs fn for all files of type t in the repo.
-func (r *Repository) List(ctx context.Context, t restic.FileType, fn func(restic.ID, int64) error) error {
+func (r *Repository) List(ctx context.Context, t file.FileType, fn func(rid.ID, int64) error) error {
 	return r.be.List(ctx, t, func(fi restic.FileInfo) error {
-		id, err := restic.ParseID(fi.Name)
+		id, err := rid.ParseID(fi.Name)
 		if err != nil {
 			debug.Log("unable to parse %v as an ID", fi.Name)
 			return nil
@@ -658,8 +660,8 @@ func (r *Repository) List(ctx context.Context, t restic.FileType, fn func(restic
 
 // ListPack returns the list of blobs saved in the pack id and the length of
 // the file as stored in the backend.
-func (r *Repository) ListPack(ctx context.Context, id restic.ID, size int64) ([]restic.Blob, int64, error) {
-	h := restic.Handle{Type: restic.DataFile, Name: id.String()}
+func (r *Repository) ListPack(ctx context.Context, id rid.ID, size int64) ([]restic.Blob, int64, error) {
+	h := file.Handle{Type: file.DataFile, Name: id.String()}
 
 	blobs, err := pack.List(r.Key(), restic.ReaderAt(r.Backend(), h), size)
 	if err != nil {
@@ -685,11 +687,11 @@ func (r *Repository) Close() error {
 // by setting storeDuplicate to true.
 // If id is the null id, it will be computed and returned.
 // Also returns if the blob was already known before
-func (r *Repository) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte, id restic.ID, storeDuplicate bool) (newID restic.ID, known bool, err error) {
+func (r *Repository) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte, id rid.ID, storeDuplicate bool) (newID rid.ID, known bool, err error) {
 
 	// compute plaintext hash if not already set
 	if id.IsNull() {
-		newID = restic.Hash(buf)
+		newID = rid.Hash(buf)
 	} else {
 		newID = id
 	}
@@ -706,7 +708,7 @@ func (r *Repository) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte
 }
 
 // LoadTree loads a tree from the repository.
-func (r *Repository) LoadTree(ctx context.Context, id restic.ID) (*restic.Tree, error) {
+func (r *Repository) LoadTree(ctx context.Context, id rid.ID) (*restic.Tree, error) {
 	debug.Log("load tree %v", id)
 
 	buf, err := r.LoadBlob(ctx, restic.TreeBlob, id, nil)
@@ -726,32 +728,32 @@ func (r *Repository) LoadTree(ctx context.Context, id restic.ID) (*restic.Tree, 
 // SaveTree stores a tree into the repository and returns the ID. The ID is
 // checked against the index. The tree is only stored when the index does not
 // contain the ID.
-func (r *Repository) SaveTree(ctx context.Context, t *restic.Tree) (restic.ID, error) {
+func (r *Repository) SaveTree(ctx context.Context, t *restic.Tree) (rid.ID, error) {
 	buf, err := json.Marshal(t)
 	if err != nil {
-		return restic.ID{}, errors.Wrap(err, "MarshalJSON")
+		return rid.ID{}, errors.Wrap(err, "MarshalJSON")
 	}
 
 	// append a newline so that the data is always consistent (json.Encoder
 	// adds a newline after each object)
 	buf = append(buf, '\n')
 
-	id, _, err := r.SaveBlob(ctx, restic.TreeBlob, buf, restic.ID{}, false)
+	id, _, err := r.SaveBlob(ctx, restic.TreeBlob, buf, rid.ID{}, false)
 	return id, err
 }
 
 // Loader allows loading data from a backend.
 type Loader interface {
-	Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error
+	Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error
 }
 
 // DownloadAndHash is all-in-one helper to download content of the file at h to a temporary filesystem location
 // and calculate ID of the contents. Returned (temporary) file is positioned at the beginning of the file;
 // it is reponsibility of the caller to close and delete the file.
-func DownloadAndHash(ctx context.Context, be Loader, h restic.Handle) (tmpfile *os.File, hash restic.ID, size int64, err error) {
+func DownloadAndHash(ctx context.Context, be Loader, h file.Handle) (tmpfile *os.File, hash rid.ID, size int64, err error) {
 	tmpfile, err = fs.TempFile("", "restic-temp-")
 	if err != nil {
-		return nil, restic.ID{}, -1, errors.Wrap(err, "TempFile")
+		return nil, rid.ID{}, -1, errors.Wrap(err, "TempFile")
 	}
 
 	err = be.Load(ctx, h, 0, 0, func(rd io.Reader) (ierr error) {
@@ -764,20 +766,20 @@ func DownloadAndHash(ctx context.Context, be Loader, h restic.Handle) (tmpfile *
 		}
 		hrd := hashing.NewReader(rd, sha256.New())
 		size, ierr = io.Copy(tmpfile, hrd)
-		hash = restic.IDFromHash(hrd.Sum(nil))
+		hash = rid.IDFromHash(hrd.Sum(nil))
 		return ierr
 	})
 	if err != nil {
 		tmpfile.Close()
 		os.Remove(tmpfile.Name())
-		return nil, restic.ID{}, -1, errors.Wrap(err, "Load")
+		return nil, rid.ID{}, -1, errors.Wrap(err, "Load")
 	}
 
 	_, err = tmpfile.Seek(0, io.SeekStart)
 	if err != nil {
 		tmpfile.Close()
 		os.Remove(tmpfile.Name())
-		return nil, restic.ID{}, -1, errors.Wrap(err, "Seek")
+		return nil, rid.ID{}, -1, errors.Wrap(err, "Seek")
 	}
 
 	return tmpfile, hash, size, err

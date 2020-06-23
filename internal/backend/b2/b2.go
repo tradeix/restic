@@ -9,6 +9,7 @@ import (
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/restic"
 
 	"github.com/kurin/blazer/b2"
@@ -114,7 +115,7 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (restic.Backe
 		sem:          sem,
 	}
 
-	present, err := be.Test(ctx, restic.Handle{Type: restic.ConfigFile})
+	present, err := be.Test(ctx, file.Handle{Type: file.ConfigFile})
 	if err != nil {
 		return nil, err
 	}
@@ -143,11 +144,11 @@ func (be *b2Backend) IsNotExist(err error) bool {
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (be *b2Backend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be *b2Backend) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
 }
 
-func (be *b2Backend) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (be *b2Backend) openReader(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load %v, length %v, offset %v from %v", h, length, offset, be.Filename(h))
 	if err := h.Valid(); err != nil {
 		return nil, err
@@ -184,7 +185,7 @@ func (be *b2Backend) openReader(ctx context.Context, h restic.Handle, length int
 }
 
 // Save stores data in the backend at the handle.
-func (be *b2Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (be *b2Backend) Save(ctx context.Context, h file.Handle, rd restic.RewindReader) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -212,7 +213,7 @@ func (be *b2Backend) Save(ctx context.Context, h restic.Handle, rd restic.Rewind
 }
 
 // Stat returns information about a blob.
-func (be *b2Backend) Stat(ctx context.Context, h restic.Handle) (bi restic.FileInfo, err error) {
+func (be *b2Backend) Stat(ctx context.Context, h file.Handle) (bi restic.FileInfo, err error) {
 	debug.Log("Stat %v", h)
 
 	be.sem.GetToken()
@@ -229,7 +230,7 @@ func (be *b2Backend) Stat(ctx context.Context, h restic.Handle) (bi restic.FileI
 }
 
 // Test returns true if a blob of the given type and name exists in the backend.
-func (be *b2Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (be *b2Backend) Test(ctx context.Context, h file.Handle) (bool, error) {
 	debug.Log("Test %v", h)
 
 	be.sem.GetToken()
@@ -246,7 +247,7 @@ func (be *b2Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
 }
 
 // Remove removes the blob with the given name and type.
-func (be *b2Backend) Remove(ctx context.Context, h restic.Handle) error {
+func (be *b2Backend) Remove(ctx context.Context, h file.Handle) error {
 	debug.Log("Remove %v", h)
 
 	be.sem.GetToken()
@@ -264,7 +265,7 @@ func (sm semLocker) Lock()   { sm.GetToken() }
 func (sm semLocker) Unlock() { sm.ReleaseToken() }
 
 // List returns a channel that yields all names of blobs of type t.
-func (be *b2Backend) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
+func (be *b2Backend) List(ctx context.Context, t file.FileType, fn func(restic.FileInfo) error) error {
 	debug.Log("List %v", t)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -298,21 +299,21 @@ func (be *b2Backend) List(ctx context.Context, t restic.FileType, fn func(restic
 }
 
 // Remove keys for a specified backend type.
-func (be *b2Backend) removeKeys(ctx context.Context, t restic.FileType) error {
+func (be *b2Backend) removeKeys(ctx context.Context, t file.FileType) error {
 	debug.Log("removeKeys %v", t)
 	return be.List(ctx, t, func(fi restic.FileInfo) error {
-		return be.Remove(ctx, restic.Handle{Type: t, Name: fi.Name})
+		return be.Remove(ctx, file.Handle{Type: t, Name: fi.Name})
 	})
 }
 
 // Delete removes all restic keys in the bucket. It will not remove the bucket itself.
 func (be *b2Backend) Delete(ctx context.Context) error {
-	alltypes := []restic.FileType{
-		restic.DataFile,
-		restic.KeyFile,
-		restic.LockFile,
-		restic.SnapshotFile,
-		restic.IndexFile}
+	alltypes := []file.FileType{
+		file.DataFile,
+		file.KeyFile,
+		file.LockFile,
+		file.SnapshotFile,
+		file.IndexFile}
 
 	for _, t := range alltypes {
 		err := be.removeKeys(ctx, t)
@@ -320,7 +321,7 @@ func (be *b2Backend) Delete(ctx context.Context) error {
 			return nil
 		}
 	}
-	err := be.Remove(ctx, restic.Handle{Type: restic.ConfigFile})
+	err := be.Remove(ctx, file.Handle{Type: file.ConfigFile})
 	if err != nil && b2.IsNotExist(errors.Cause(err)) {
 		err = nil
 	}

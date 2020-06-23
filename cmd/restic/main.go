@@ -9,8 +9,8 @@ import (
 	"runtime"
 
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/options"
-	"github.com/restic/restic/internal/restic"
 
 	"github.com/spf13/cobra"
 
@@ -86,7 +86,7 @@ func main() {
 	err := cmdRoot.Execute()
 
 	switch {
-	case restic.IsAlreadyLocked(errors.Cause(err)):
+	case lock.IsAlreadyLocked(errors.Cause(err)):
 		fmt.Fprintf(os.Stderr, "%v\nthe `unlock` command can be used to remove stale locks\n", err)
 	case errors.IsFatal(errors.Cause(err)):
 		fmt.Fprintf(os.Stderr, "%v\n", err)

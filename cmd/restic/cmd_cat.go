@@ -7,6 +7,9 @@ import (
 
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 )
@@ -42,17 +45,17 @@ func runCat(gopts GlobalOptions, args []string) error {
 		return err
 	}
 
-	lock, err := lockRepo(repo)
-	defer unlockRepo(lock)
+	lck, err :=lock.LockRepo(repo)
+	defer lock.UnlockRepo(lck)
 	if err != nil {
 		return err
 	}
 
 	tpe := args[0]
 
-	var id restic.ID
+	var id rid.ID
 	if tpe != "masterkey" && tpe != "config" {
-		id, err = restic.ParseID(args[1])
+		id, err = rid.ParseID(args[1])
 		if err != nil {
 			if tpe != "snapshot" {
 				return errors.Fatalf("unable to parse ID: %v\n", err)
@@ -77,7 +80,7 @@ func runCat(gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "index":
-		buf, err := repo.LoadAndDecrypt(gopts.ctx, nil, restic.IndexFile, id)
+		buf, err := repo.LoadAndDecrypt(gopts.ctx, nil, file.IndexFile, id)
 		if err != nil {
 			return err
 		}
@@ -86,7 +89,7 @@ func runCat(gopts GlobalOptions, args []string) error {
 		return nil
 	case "snapshot":
 		sn := &restic.Snapshot{}
-		err = repo.LoadJSONUnpacked(gopts.ctx, restic.SnapshotFile, id, sn)
+		err = repo.LoadJSONUnpacked(gopts.ctx, file.SnapshotFile, id, sn)
 		if err != nil {
 			return err
 		}
@@ -99,7 +102,7 @@ func runCat(gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "key":
-		h := restic.Handle{Type: restic.KeyFile, Name: id.String()}
+		h := file.Handle{Type: file.KeyFile, Name: id.String()}
 		buf, err := backend.LoadAll(gopts.ctx, nil, repo.Backend(), h)
 		if err != nil {
 			return err
@@ -127,12 +130,12 @@ func runCat(gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "lock":
-		lock, err := restic.LoadLock(gopts.ctx, repo, id)
+		lck, err := lock.LoadLock(gopts.ctx, repo, id)
 		if err != nil {
 			return err
 		}
 
-		buf, err := json.MarshalIndent(&lock, "", "  ")
+		buf, err := json.MarshalIndent(&lck, "", "  ")
 		if err != nil {
 			return err
 		}
@@ -149,13 +152,13 @@ func runCat(gopts GlobalOptions, args []string) error {
 
 	switch tpe {
 	case "pack":
-		h := restic.Handle{Type: restic.DataFile, Name: id.String()}
+		h := file.Handle{Type: file.DataFile, Name: id.String()}
 		buf, err := backend.LoadAll(gopts.ctx, nil, repo.Backend(), h)
 		if err != nil {
 			return err
 		}
 
-		hash := restic.Hash(buf)
+		hash := rid.Hash(buf)
 		if !hash.Equal(id) {
 			Warnf("Warning: hash of data does not match ID, want\n  %v\ngot:\n  %v\n", id.String(), hash.String())
 		}

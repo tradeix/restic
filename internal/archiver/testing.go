@@ -13,11 +13,12 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/fs"
+	"github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 )
 
 // TestSnapshot creates a new snapshot of path.
-func TestSnapshot(t testing.TB, repo restic.Repository, path string, parent *restic.ID) *restic.Snapshot {
+func TestSnapshot(t testing.TB, repo restic.Repository, path string, parent *id.ID) *restic.Snapshot {
 	arch := New(repo, fs.Local{}, Options{})
 	opts := SnapshotOptions{
 		Time:     time.Now(),
@@ -246,7 +247,7 @@ func TestEnsureFileContent(ctx context.Context, t testing.TB, repo restic.Reposi
 
 // TestEnsureTree checks that the tree ID in the repo matches dir. On Windows,
 // Symlinks are ignored.
-func TestEnsureTree(ctx context.Context, t testing.TB, prefix string, repo restic.Repository, treeID restic.ID, dir TestDir) {
+func TestEnsureTree(ctx context.Context, t testing.TB, prefix string, repo restic.Repository, treeID id.ID, dir TestDir) {
 	t.Helper()
 
 	tree, err := repo.LoadTree(ctx, treeID)
@@ -322,7 +323,7 @@ func TestEnsureTree(ctx context.Context, t testing.TB, prefix string, repo resti
 
 // TestEnsureSnapshot tests if the snapshot in the repo has exactly the same
 // structure as dir. On Windows, Symlinks are ignored.
-func TestEnsureSnapshot(t testing.TB, repo restic.Repository, snapshotID restic.ID, dir TestDir) {
+func TestEnsureSnapshot(t testing.TB, repo restic.Repository, snapshotID id.ID, dir TestDir) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

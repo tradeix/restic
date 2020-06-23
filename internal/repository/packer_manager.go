@@ -5,21 +5,22 @@ import (
 	"os"
 	"sync"
 
-	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/hashing"
-	"github.com/restic/restic/internal/restic"
-
 	"github.com/restic/restic/internal/crypto"
+	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/hashing"
 	"github.com/restic/restic/internal/pack"
+	"github.com/restic/restic/internal/restic"
 
 	"github.com/minio/sha256-simd"
 )
 
 // Saver implements saving data in a backend.
 type Saver interface {
-	Save(context.Context, restic.Handle, restic.RewindReader) error
+	Save(context.Context, file.Handle, restic.RewindReader) error
 }
 
 // Packer holds a pack.Packer together with a hash writer.
@@ -96,8 +97,8 @@ func (r *Repository) savePacker(ctx context.Context, t restic.BlobType, p *Packe
 		return err
 	}
 
-	id := restic.IDFromHash(p.hw.Sum(nil))
-	h := restic.Handle{Type: restic.DataFile, Name: id.String()}
+	id := rid.IDFromHash(p.hw.Sum(nil))
+	h := file.Handle{Type: file.DataFile, Name: id.String()}
 
 	rd, err := restic.NewFileReader(p.tmpfile)
 	if err != nil {

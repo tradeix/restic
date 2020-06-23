@@ -11,7 +11,9 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/restic"
 	tomb "gopkg.in/tomb.v2"
 )
@@ -159,11 +161,11 @@ func (arch *Archiver) error(item string, fi os.FileInfo, err error) error {
 
 // saveTree stores a tree in the repo. It checks the index and the known blobs
 // before saving anything.
-func (arch *Archiver) saveTree(ctx context.Context, t *restic.Tree) (restic.ID, ItemStats, error) {
+func (arch *Archiver) saveTree(ctx context.Context, t *restic.Tree) (rid.ID, ItemStats, error) {
 	var s ItemStats
 	buf, err := json.Marshal(t)
 	if err != nil {
-		return restic.ID{}, s, errors.Wrap(err, "MarshalJSON")
+		return rid.ID{}, s, errors.Wrap(err, "MarshalJSON")
 	}
 
 	// append a newline so that the data is always consistent (json.Encoder
@@ -686,11 +688,11 @@ type SnapshotOptions struct {
 	Hostname       string
 	Excludes       []string
 	Time           time.Time
-	ParentSnapshot restic.ID
+	ParentSnapshot rid.ID
 }
 
-// loadParentTree loads a tree referenced by snapshot id. If id is null, nil is returned.
-func (arch *Archiver) loadParentTree(ctx context.Context, snapshotID restic.ID) *restic.Tree {
+// loadParentTree loads a tree referenced by snapshot rid. If id is null, nil is returned.
+func (arch *Archiver) loadParentTree(ctx context.Context, snapshotID rid.ID) *restic.Tree {
 	if snapshotID.IsNull() {
 		return nil
 	}
@@ -731,15 +733,15 @@ func (arch *Archiver) runWorkers(ctx context.Context, t *tomb.Tomb) {
 }
 
 // Snapshot saves several targets and returns a snapshot.
-func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts SnapshotOptions) (*restic.Snapshot, restic.ID, error) {
+func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts SnapshotOptions) (*restic.Snapshot, rid.ID, error) {
 	cleanTargets, err := resolveRelativeTargets(arch.FS, targets)
 	if err != nil {
-		return nil, restic.ID{}, err
+		return nil, rid.ID{}, err
 	}
 
 	atree, err := NewTree(arch.FS, cleanTargets)
 	if err != nil {
-		return nil, restic.ID{}, err
+		return nil, rid.ID{}, err
 	}
 
 	var t tomb.Tomb
@@ -750,14 +752,14 @@ func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts Snaps
 	start := time.Now()
 
 	debug.Log("starting snapshot")
-	rootTreeID, stats, err := func() (restic.ID, ItemStats, error) {
+	rootTreeID, stats, err := func() (rid.ID, ItemStats, error) {
 		tree, err := arch.SaveTree(wctx, "/", atree, arch.loadParentTree(wctx, opts.ParentSnapshot))
 		if err != nil {
-			return restic.ID{}, ItemStats{}, err
+			return rid.ID{}, ItemStats{}, err
 		}
 
 		if len(tree.Nodes) == 0 {
-			return restic.ID{}, ItemStats{}, errors.New("snapshot is empty")
+			return rid.ID{}, ItemStats{}, errors.New("snapshot is empty")
 		}
 
 		return arch.saveTree(wctx, tree)
@@ -773,19 +775,19 @@ func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts Snaps
 
 	if err != nil {
 		debug.Log("error while saving tree: %v", err)
-		return nil, restic.ID{}, err
+		return nil, rid.ID{}, err
 	}
 
 	arch.CompleteItem("/", nil, nil, stats, time.Since(start))
 
 	err = arch.Repo.Flush(ctx)
 	if err != nil {
-		return nil, restic.ID{}, err
+		return nil, rid.ID{}, err
 	}
 
 	sn, err := restic.NewSnapshot(targets, opts.Tags, opts.Hostname, opts.Time)
 	if err != nil {
-		return nil, restic.ID{}, err
+		return nil, rid.ID{}, err
 	}
 
 	sn.Excludes = opts.Excludes
@@ -795,9 +797,9 @@ func (arch *Archiver) Snapshot(ctx context.Context, targets []string, opts Snaps
 	}
 	sn.Tree = &rootTreeID
 
-	id, err := arch.Repo.SaveJSONUnpacked(ctx, restic.SnapshotFile, sn)
+	id, err := arch.Repo.SaveJSONUnpacked(ctx, file.SnapshotFile, sn)
 	if err != nil {
-		return nil, restic.ID{}, err
+		return nil, rid.ID{}, err
 	}
 
 	return sn, id, nil

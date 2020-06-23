@@ -12,8 +12,8 @@ import (
 
 func TestIndexSerialize(t *testing.T) {
 	type testEntry struct {
-		id             restic.ID
-		pack           restic.ID
+		id             id.ID
+		pack           id.ID
 		tpe            restic.BlobType
 		offset, length uint
 	}
@@ -257,7 +257,7 @@ var docOldExample = []byte(`
 `)
 
 var exampleTests = []struct {
-	id, packID     restic.ID
+	id, packID     id.ID
 	tpe            restic.BlobType
 	offset, length uint
 }{
@@ -277,11 +277,11 @@ var exampleTests = []struct {
 }
 
 var exampleLookupTest = struct {
-	packID restic.ID
-	blobs  map[restic.ID]restic.BlobType
+	packID id.ID
+	blobs  map[id.ID]restic.BlobType
 }{
 	restic.TestParseID("73d04e6125cf3c28a299cc2f3cca3b78ceac396e4fcf9575e34536b26782413c"),
-	map[restic.ID]restic.BlobType{
+	map[id.ID]restic.BlobType{
 		restic.TestParseID("3ec79977ef0cf5de7b08cd12b874cd0f62bbaf7f07f3497a5b1bbcc8cb39b1ce"): restic.DataBlob,
 		restic.TestParseID("9ccb846e60d90d4eb915848add7aa7ea1e4bbabfc60e573db9f7bfb2789afbae"): restic.TreeBlob,
 		restic.TestParseID("d3dc577b4ffd38cc4b32122cabf8655a0223ed22edfd93b353dc0c3f2b0fdf66"): restic.DataBlob,
@@ -289,7 +289,7 @@ var exampleLookupTest = struct {
 }
 
 func TestIndexUnserialize(t *testing.T) {
-	oldIdx := restic.IDs{restic.TestParseID("ed54ae36197f4745ebc4b54d10e0f623eaaaedd03013eb7ae90df881b7781452")}
+	oldIdx := id.IDs{restic.TestParseID("ed54ae36197f4745ebc4b54d10e0f623eaaaedd03013eb7ae90df881b7781452")}
 
 	idx, err := repository.DecodeIndex(docExample)
 	rtest.OK(t, err)
@@ -362,7 +362,7 @@ func TestIndexUnserializeOld(t *testing.T) {
 
 func TestIndexPacks(t *testing.T) {
 	idx := repository.NewIndex()
-	packs := restic.NewIDSet()
+	packs := id.NewIDSet()
 
 	for i := 0; i < 20; i++ {
 		packID := restic.NewRandomID()
@@ -386,13 +386,13 @@ func TestIndexPacks(t *testing.T) {
 const maxPackSize = 16 * 1024 * 1024
 
 // This function generates a (insecure) random ID, similar to NewRandomID
-func NewRandomTestID(rng *rand.Rand) restic.ID {
-	id := restic.ID{}
+func NewRandomTestID(rng *rand.Rand) id.ID {
+	id := id.ID{}
 	rng.Read(id[:])
 	return id
 }
 
-func createRandomIndex(rng *rand.Rand) (idx *repository.Index, lookupID restic.ID) {
+func createRandomIndex(rng *rand.Rand) (idx *repository.Index, lookupID id.ID) {
 	idx = repository.NewIndex()
 
 	// create index with 200k pack files
@@ -452,8 +452,8 @@ func BenchmarkIndexAlloc(b *testing.B) {
 
 func TestIndexHas(t *testing.T) {
 	type testEntry struct {
-		id             restic.ID
-		pack           restic.ID
+		id             id.ID
+		pack           id.ID
 		tpe            restic.BlobType
 		offset, length uint
 	}

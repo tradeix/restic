@@ -9,6 +9,8 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/pack"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -21,13 +23,13 @@ import (
 // A Checker only tests for internal errors within the data structures of the
 // repository (e.g. missing blobs), and needs a valid Repository to work on.
 type Checker struct {
-	packs    restic.IDSet
-	blobs    restic.IDSet
+	packs    rid.IDSet
+	blobs    rid.IDSet
 	blobRefs struct {
 		sync.Mutex
-		M map[restic.ID]uint
+		M map[rid.ID]uint
 	}
-	indexes map[restic.ID]*repository.Index
+	indexes map[rid.ID]*repository.Index
 
 	masterIndex *repository.MasterIndex
 
@@ -37,14 +39,14 @@ type Checker struct {
 // New returns a new checker which runs on repo.
 func New(repo restic.Repository) *Checker {
 	c := &Checker{
-		packs:       restic.NewIDSet(),
-		blobs:       restic.NewIDSet(),
+		packs:       rid.NewIDSet(),
+		blobs:       rid.NewIDSet(),
 		masterIndex: repository.NewMasterIndex(),
-		indexes:     make(map[restic.ID]*repository.Index),
+		indexes:     make(map[rid.ID]*repository.Index),
 		repo:        repo,
 	}
 
-	c.blobRefs.M = make(map[restic.ID]uint)
+	c.blobRefs.M = make(map[rid.ID]uint)
 
 	return c
 }
@@ -53,8 +55,8 @@ const defaultParallelism = 5
 
 // ErrDuplicatePacks is returned when a pack is found in more than one index.
 type ErrDuplicatePacks struct {
-	PackID  restic.ID
-	Indexes restic.IDSet
+	PackID  rid.ID
+	Indexes rid.IDSet
 }
 
 func (e ErrDuplicatePacks) Error() string {
@@ -64,7 +66,7 @@ func (e ErrDuplicatePacks) Error() string {
 // ErrOldIndexFormat is returned when an index with the old format is
 // found.
 type ErrOldIndexFormat struct {
-	restic.ID
+	rid.ID
 }
 
 func (err ErrOldIndexFormat) Error() string {
@@ -80,13 +82,13 @@ func (c *Checker) LoadIndex(ctx context.Context) (hints []error, errs []error) {
 	wg, ctx := errgroup.WithContext(ctx)
 
 	type FileInfo struct {
-		restic.ID
+		rid.ID
 		Size int64
 	}
 
 	type Result struct {
 		*repository.Index
-		restic.ID
+		rid.ID
 		Err error
 	}
 
@@ -96,7 +98,7 @@ func (c *Checker) LoadIndex(ctx context.Context) (hints []error, errs []error) {
 	// send list of index files through ch, which is closed afterwards
 	wg.Go(func() error {
 		defer close(ch)
-		return c.repo.List(ctx, restic.IndexFile, func(id restic.ID, size int64) error {
+		return c.repo.List(ctx, file.IndexFile, func(id rid.ID, size int64) error {
 			select {
 			case <-ctx.Done():
 				return nil
@@ -142,7 +144,7 @@ func (c *Checker) LoadIndex(ctx context.Context) (hints []error, errs []error) {
 	})
 
 	// receive decoded indexes
-	packToIndex := make(map[restic.ID]restic.IDSet)
+	packToIndex := make(map[rid.ID]rid.IDSet)
 	wg.Go(func() error {
 		for res := range resultCh {
 			debug.Log("process index %v, err %v", res.ID, res.Err)
@@ -164,7 +166,7 @@ func (c *Checker) LoadIndex(ctx context.Context) (hints []error, errs []error) {
 				cnt++
 
 				if _, ok := packToIndex[blob.PackID]; !ok {
-					packToIndex[blob.PackID] = restic.NewIDSet()
+					packToIndex[blob.PackID] = rid.NewIDSet()
 				}
 				packToIndex[blob.PackID].Insert(res.ID)
 			}
@@ -201,7 +203,7 @@ func (c *Checker) LoadIndex(ctx context.Context) (hints []error, errs []error) {
 
 // PackError describes an error with a specific pack.
 type PackError struct {
-	ID       restic.ID
+	ID       rid.ID
 	Orphaned bool
 	Err      error
 }
@@ -229,9 +231,9 @@ func (c *Checker) Packs(ctx context.Context, errChan chan<- error) {
 	debug.Log("checking for %d packs", len(c.packs))
 
 	debug.Log("listing repository packs")
-	repoPacks := restic.NewIDSet()
+	repoPacks := rid.NewIDSet()
 
-	err := c.repo.List(ctx, restic.DataFile, func(id restic.ID, size int64) error {
+	err := c.repo.List(ctx, file.DataFile, func(id rid.ID, size int64) error {
 		repoPacks.Insert(id)
 		return nil
 	})
@@ -261,8 +263,8 @@ func (c *Checker) Packs(ctx context.Context, errChan chan<- error) {
 
 // Error is an error that occurred while checking a repository.
 type Error struct {
-	TreeID restic.ID
-	BlobID restic.ID
+	TreeID rid.ID
+	BlobID rid.ID
 	Err    error
 }
 
@@ -281,25 +283,25 @@ func (e Error) Error() string {
 	return e.Err.Error()
 }
 
-func loadTreeFromSnapshot(ctx context.Context, repo restic.Repository, id restic.ID) (restic.ID, error) {
+func loadTreeFromSnapshot(ctx context.Context, repo restic.Repository, id rid.ID) (rid.ID, error) {
 	sn, err := restic.LoadSnapshot(ctx, repo, id)
 	if err != nil {
 		debug.Log("error loading snapshot %v: %v", id, err)
-		return restic.ID{}, err
+		return rid.ID{}, err
 	}
 
 	if sn.Tree == nil {
 		debug.Log("snapshot %v has no tree", id)
-		return restic.ID{}, errors.Errorf("snapshot %v has no tree", id)
+		return rid.ID{}, errors.Errorf("snapshot %v has no tree", id)
 	}
 
 	return *sn.Tree, nil
 }
 
 // loadSnapshotTreeIDs loads all snapshots from backend and returns the tree IDs.
-func loadSnapshotTreeIDs(ctx context.Context, repo restic.Repository) (restic.IDs, []error) {
+func loadSnapshotTreeIDs(ctx context.Context, repo restic.Repository) (rid.IDs, []error) {
 	var trees struct {
-		IDs restic.IDs
+		IDs rid.IDs
 		sync.Mutex
 	}
 
@@ -312,12 +314,12 @@ func loadSnapshotTreeIDs(ctx context.Context, repo restic.Repository) (restic.ID
 	// cancelled as soon as an error occurs.
 	wg, ctx := errgroup.WithContext(ctx)
 
-	ch := make(chan restic.ID)
+	ch := make(chan rid.ID)
 
 	// send list of index files through ch, which is closed afterwards
 	wg.Go(func() error {
 		defer close(ch)
-		return repo.List(ctx, restic.SnapshotFile, func(id restic.ID, size int64) error {
+		return repo.List(ctx, file.SnapshotFile, func(id rid.ID, size int64) error {
 			select {
 			case <-ctx.Done():
 				return nil
@@ -363,7 +365,7 @@ func loadSnapshotTreeIDs(ctx context.Context, repo restic.Repository) (restic.ID
 
 // TreeError collects several errors that occurred while processing a tree.
 type TreeError struct {
-	ID     restic.ID
+	ID     rid.ID
 	Errors []error
 }
 
@@ -372,14 +374,14 @@ func (e TreeError) Error() string {
 }
 
 type treeJob struct {
-	restic.ID
+	rid.ID
 	error
 	*restic.Tree
 }
 
 // loadTreeWorker loads trees from repo and sends them to out.
 func loadTreeWorker(ctx context.Context, repo restic.Repository,
-	in <-chan restic.ID, out chan<- treeJob,
+	in <-chan rid.ID, out chan<- treeJob,
 	wg *sync.WaitGroup) {
 
 	defer func() {
@@ -483,7 +485,7 @@ func (c *Checker) checkTreeWorker(ctx context.Context, in <-chan treeJob, out ch
 	}
 }
 
-func filterTrees(ctx context.Context, backlog restic.IDs, loaderChan chan<- restic.ID, in <-chan treeJob, out chan<- treeJob) {
+func filterTrees(ctx context.Context, backlog rid.IDs, loaderChan chan<- rid.ID, in <-chan treeJob, out chan<- treeJob) {
 	defer func() {
 		debug.Log("closing output channels")
 		close(loaderChan)
@@ -495,7 +497,7 @@ func filterTrees(ctx context.Context, backlog restic.IDs, loaderChan chan<- rest
 		outCh                   = out
 		loadCh                  = loaderChan
 		job                     treeJob
-		nextTreeID              restic.ID
+		nextTreeID              rid.ID
 		outstandingLoadTreeJobs = 0
 	)
 
@@ -588,7 +590,7 @@ func (c *Checker) Structure(ctx context.Context, errChan chan<- error) {
 		}
 	}
 
-	treeIDChan := make(chan restic.ID)
+	treeIDChan := make(chan rid.ID)
 	treeJobChan1 := make(chan treeJob)
 	treeJobChan2 := make(chan treeJob)
 
@@ -604,10 +606,10 @@ func (c *Checker) Structure(ctx context.Context, errChan chan<- error) {
 	wg.Wait()
 }
 
-func (c *Checker) checkTree(id restic.ID, tree *restic.Tree) (errs []error) {
+func (c *Checker) checkTree(id rid.ID, tree *restic.Tree) (errs []error) {
 	debug.Log("checking tree %v", id)
 
-	var blobs []restic.ID
+	var blobs []rid.ID
 
 	for _, node := range tree.Nodes {
 		switch node.Type {
@@ -669,7 +671,7 @@ func (c *Checker) checkTree(id restic.ID, tree *restic.Tree) (errs []error) {
 }
 
 // UnusedBlobs returns all blobs that have never been referenced.
-func (c *Checker) UnusedBlobs() (blobs restic.IDs) {
+func (c *Checker) UnusedBlobs() (blobs rid.IDs) {
 	c.blobRefs.Lock()
 	defer c.blobRefs.Unlock()
 
@@ -690,14 +692,14 @@ func (c *Checker) CountPacks() uint64 {
 }
 
 // GetPacks returns IDSet of packs in the repository
-func (c *Checker) GetPacks() restic.IDSet {
+func (c *Checker) GetPacks() rid.IDSet {
 	return c.packs
 }
 
 // checkPack reads a pack and checks the integrity of all blobs.
-func checkPack(ctx context.Context, r restic.Repository, id restic.ID) error {
+func checkPack(ctx context.Context, r restic.Repository, id rid.ID) error {
 	debug.Log("checking pack %v", id)
-	h := restic.Handle{Type: restic.DataFile, Name: id.String()}
+	h := file.Handle{Type: file.DataFile, Name: id.String()}
 
 	packfile, hash, size, err := repository.DownloadAndHash(ctx, r.Backend(), h)
 	if err != nil {
@@ -752,7 +754,7 @@ func checkPack(ctx context.Context, r restic.Repository, id restic.ID) error {
 			continue
 		}
 
-		hash := restic.Hash(plaintext)
+		hash := rid.Hash(plaintext)
 		if !hash.Equal(blob.ID) {
 			debug.Log("  Blob ID does not match, want %v, got %v", blob.ID, hash)
 			errs = append(errs, errors.Errorf("Blob ID does not match, want %v, got %v", blob.ID.Str(), hash.Str()))
@@ -773,20 +775,20 @@ func (c *Checker) ReadData(ctx context.Context, p *restic.Progress, errChan chan
 }
 
 // ReadPacks loads data from specified packs and checks the integrity.
-func (c *Checker) ReadPacks(ctx context.Context, packs restic.IDSet, p *restic.Progress, errChan chan<- error) {
+func (c *Checker) ReadPacks(ctx context.Context, packs rid.IDSet, p *restic.Progress, errChan chan<- error) {
 	defer close(errChan)
 
 	p.Start()
 	defer p.Done()
 
 	g, ctx := errgroup.WithContext(ctx)
-	ch := make(chan restic.ID)
+	ch := make(chan rid.ID)
 
 	// run workers
 	for i := 0; i < defaultParallelism; i++ {
 		g.Go(func() error {
 			for {
-				var id restic.ID
+				var id rid.ID
 				var ok bool
 
 				select {

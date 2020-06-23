@@ -34,8 +34,8 @@ func testRead(t testing.TB, f *file, offset, length int, data []byte) {
 	rtest.OK(t, f.Read(ctx, req, resp))
 }
 
-func firstSnapshotID(t testing.TB, repo restic.Repository) (first restic.ID) {
-	err := repo.List(context.TODO(), restic.SnapshotFile, func(id restic.ID, size int64) error {
+func firstSnapshotID(t testing.TB, repo restic.Repository) (first id.ID) {
+	err := repo.List(context.TODO(), file.SnapshotFile, func(id id.ID, size int64) error {
 		if first.IsNull() {
 			first = id
 		}
@@ -56,7 +56,7 @@ func loadFirstSnapshot(t testing.TB, repo restic.Repository) *restic.Snapshot {
 	return sn
 }
 
-func loadTree(t testing.TB, repo restic.Repository, id restic.ID) *restic.Tree {
+func loadTree(t testing.TB, repo restic.Repository, id id.ID) *restic.Tree {
 	tree, err := repo.LoadTree(context.TODO(), id)
 	rtest.OK(t, err)
 	return tree
@@ -76,7 +76,7 @@ func TestFuseFile(t *testing.T) {
 	sn := loadFirstSnapshot(t, repo)
 	tree := loadTree(t, repo, *sn.Tree)
 
-	var content restic.IDs
+	var content id.IDs
 	for _, node := range tree.Nodes {
 		content = append(content, node.Content...)
 	}

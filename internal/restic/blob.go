@@ -4,13 +4,14 @@ import (
 	"fmt"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/id"
 )
 
 // Blob is one part of a file or a tree.
 type Blob struct {
 	Type   BlobType
 	Length uint
-	ID     ID
+	ID     id.ID
 	Offset uint
 }
 
@@ -22,12 +23,12 @@ func (b Blob) String() string {
 // PackedBlob is a blob stored within a file.
 type PackedBlob struct {
 	Blob
-	PackID ID
+	PackID id.ID
 }
 
 // BlobHandle identifies a blob of a given type.
 type BlobHandle struct {
-	ID   ID
+	ID   id.ID
 	Type BlobType
 }
 

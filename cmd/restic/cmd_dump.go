@@ -12,6 +12,8 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/walker"
 
@@ -126,8 +128,8 @@ func runDump(opts DumpOptions, gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
@@ -138,7 +140,7 @@ func runDump(opts DumpOptions, gopts GlobalOptions, args []string) error {
 		return err
 	}
 
-	var id restic.ID
+	var id rid.ID
 
 	if snapshotIDString == "latest" {
 		id, err = restic.FindLatestSnapshot(ctx, repo, opts.Paths, opts.Tags, opts.Hosts)
@@ -212,7 +214,7 @@ func tarTree(ctx context.Context, repo restic.Repository, rootNode *restic.Node,
 		return err
 	}
 
-	err := walker.Walk(ctx, repo, *rootNode.Subtree, nil, func(_ restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+	err := walker.Walk(ctx, repo, *rootNode.Subtree, nil, func(_ rid.ID, nodepath string, node *restic.Node, err error) (bool, error) {
 		if err != nil {
 			return false, err
 		}

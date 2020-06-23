@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/restic/restic/internal/errors"
-
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/id"
 
 	"github.com/restic/chunker"
 )
@@ -24,7 +25,7 @@ const RepoVersion = 1
 
 // JSONUnpackedLoader loads unpacked JSON.
 type JSONUnpackedLoader interface {
-	LoadJSONUnpacked(context.Context, FileType, ID, interface{}) error
+	LoadJSONUnpacked(context.Context, file.FileType, id.ID, interface{}) error
 }
 
 // CreateConfig creates a config file with a randomly selected polynomial and
@@ -40,7 +41,7 @@ func CreateConfig() (Config, error) {
 		return Config{}, errors.Wrap(err, "chunker.RandomPolynomial")
 	}
 
-	cfg.ID = NewRandomID().String()
+	cfg.ID = id.NewRandomID().String()
 	cfg.Version = RepoVersion
 
 	debug.Log("New config: %#v", cfg)
@@ -51,7 +52,7 @@ func CreateConfig() (Config, error) {
 func TestCreateConfig(t testing.TB, pol chunker.Pol) (cfg Config) {
 	cfg.ChunkerPolynomial = pol
 
-	cfg.ID = NewRandomID().String()
+	cfg.ID = id.NewRandomID().String()
 	cfg.Version = RepoVersion
 
 	return cfg
@@ -72,7 +73,7 @@ func LoadConfig(ctx context.Context, r JSONUnpackedLoader) (Config, error) {
 		cfg Config
 	)
 
-	err := r.LoadJSONUnpacked(ctx, ConfigFile, ID{}, &cfg)
+	err := r.LoadJSONUnpacked(ctx, file.ConfigFile, id.ID{}, &cfg)
 	if err != nil {
 		return Config{}, err
 	}

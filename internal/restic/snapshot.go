@@ -8,13 +8,16 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/id"
+	ros "github.com/restic/restic/internal/os"
 )
 
 // Snapshot is the state of a resource at one point in time.
 type Snapshot struct {
 	Time     time.Time `json:"time"`
-	Parent   *ID       `json:"parent,omitempty"`
-	Tree     *ID       `json:"tree"`
+	Parent   *id.ID       `json:"parent,omitempty"`
+	Tree     *id.ID       `json:"tree"`
 	Paths    []string  `json:"paths"`
 	Hostname string    `json:"hostname,omitempty"`
 	Username string    `json:"username,omitempty"`
@@ -22,9 +25,9 @@ type Snapshot struct {
 	GID      uint32    `json:"gid,omitempty"`
 	Excludes []string  `json:"excludes,omitempty"`
 	Tags     []string  `json:"tags,omitempty"`
-	Original *ID       `json:"original,omitempty"`
+	Original *id.ID       `json:"original,omitempty"`
 
-	id *ID // plaintext ID, used during restore
+	id *id.ID // plaintext ID, used during restore
 }
 
 // NewSnapshot returns an initialized snapshot struct for the current user and
@@ -56,9 +59,9 @@ func NewSnapshot(paths []string, tags []string, hostname string, time time.Time)
 }
 
 // LoadSnapshot loads the snapshot with the id and returns it.
-func LoadSnapshot(ctx context.Context, repo Repository, id ID) (*Snapshot, error) {
+func LoadSnapshot(ctx context.Context, repo Repository, id id.ID) (*Snapshot, error) {
 	sn := &Snapshot{id: &id}
-	err := repo.LoadJSONUnpacked(ctx, SnapshotFile, id, sn)
+	err := repo.LoadJSONUnpacked(ctx, file.SnapshotFile, id, sn)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +71,7 @@ func LoadSnapshot(ctx context.Context, repo Repository, id ID) (*Snapshot, error
 
 // LoadAllSnapshots returns a list of all snapshots in the repo.
 func LoadAllSnapshots(ctx context.Context, repo Repository) (snapshots []*Snapshot, err error) {
-	err = repo.List(ctx, SnapshotFile, func(id ID, size int64) error {
+	err = repo.List(ctx, file.SnapshotFile, func(id id.ID, size int64) error {
 		sn, err := LoadSnapshot(ctx, repo, id)
 		if err != nil {
 			return err
@@ -91,7 +94,7 @@ func (sn Snapshot) String() string {
 }
 
 // ID returns the snapshot's ID.
-func (sn Snapshot) ID() *ID {
+func (sn Snapshot) ID() *id.ID {
 	return sn.id
 }
 
@@ -103,7 +106,7 @@ func (sn *Snapshot) fillUserInfo() error {
 	sn.Username = usr.Username
 
 	// set userid and groupid
-	sn.UID, sn.GID, err = uidGidInt(*usr)
+	sn.UID, sn.GID, err = ros.UidGidInt(*usr)
 	return err
 }
 

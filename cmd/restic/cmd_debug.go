@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/pack"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -55,7 +56,7 @@ func prettyPrintJSON(wr io.Writer, item interface{}) error {
 }
 
 func debugPrintSnapshots(repo *repository.Repository, wr io.Writer) error {
-	return repo.List(context.TODO(), restic.SnapshotFile, func(id restic.ID, size int64) error {
+	return repo.List(context.TODO(), file.SnapshotFile, func(id id.ID, size int64) error {
 		snapshot, err := restic.LoadSnapshot(context.TODO(), repo, id)
 		if err != nil {
 			return err
@@ -78,14 +79,14 @@ type Pack struct {
 type Blob struct {
 	Type   restic.BlobType `json:"type"`
 	Length uint            `json:"length"`
-	ID     restic.ID       `json:"id"`
+	ID     id.ID       `json:"id"`
 	Offset uint            `json:"offset"`
 }
 
 func printPacks(repo *repository.Repository, wr io.Writer) error {
 
-	return repo.List(context.TODO(), restic.DataFile, func(id restic.ID, size int64) error {
-		h := restic.Handle{Type: restic.DataFile, Name: id.String()}
+	return repo.List(context.TODO(), file.DataFile, func(id id.ID, size int64) error {
+		h := file.Handle{Type: file.DataFile, Name: id.String()}
 
 		blobs, err := pack.List(repo.Key(), restic.ReaderAt(repo.Backend(), h), size)
 		if err != nil {
@@ -111,7 +112,7 @@ func printPacks(repo *repository.Repository, wr io.Writer) error {
 }
 
 func dumpIndexes(repo restic.Repository, wr io.Writer) error {
-	return repo.List(context.TODO(), restic.IndexFile, func(id restic.ID, size int64) error {
+	return repo.List(context.TODO(), file.IndexFile, func(id id.ID, size int64) error {
 		Printf("index_id: %v\n", id)
 
 		idx, err := repository.LoadIndex(context.TODO(), repo, id)
@@ -134,8 +135,8 @@ func runDebugDump(gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}

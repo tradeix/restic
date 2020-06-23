@@ -86,7 +86,7 @@ func listSnapshots(t testing.TB, dir string) []string {
 	return names
 }
 
-func checkSnapshots(t testing.TB, global GlobalOptions, repo *repository.Repository, mountpoint, repodir string, snapshotIDs restic.IDs, expectedSnapshotsInFuseDir int) {
+func checkSnapshots(t testing.TB, global GlobalOptions, repo *repository.Repository, mountpoint, repodir string, snapshotIDs id.IDs, expectedSnapshotsInFuseDir int) {
 	t.Logf("checking for %d snapshots: %v", len(snapshotIDs), snapshotIDs)
 
 	go testRunMount(t, global, mountpoint)
@@ -167,7 +167,7 @@ func TestMount(t *testing.T) {
 	// We remove the mountpoint now to check that cmdMount creates it
 	rtest.RemoveAll(t, env.mountpoint)
 
-	checkSnapshots(t, env.gopts, repo, env.mountpoint, env.repo, []restic.ID{}, 0)
+	checkSnapshots(t, env.gopts, repo, env.mountpoint, env.repo, []id.ID{}, 0)
 
 	rtest.SetupTarTestFixture(t, env.testdata, filepath.Join("testdata", "backup-data.tar.gz"))
 
@@ -210,7 +210,7 @@ func TestMountSameTimestamps(t *testing.T) {
 	repo, err := OpenRepository(env.gopts)
 	rtest.OK(t, err)
 
-	ids := []restic.ID{
+	ids := []id.ID{
 		restic.TestParseID("280303689e5027328889a06d718b729e96a1ce6ae9ef8290bff550459ae611ee"),
 		restic.TestParseID("75ad6cdc0868e082f2596d5ab8705e9f7d87316f5bf5690385eeff8dbe49d9f5"),
 		restic.TestParseID("5fd0d8b2ef0fa5d23e58f1e460188abb0f525c0f0c4af8365a1280c807a80a1b"),

@@ -1,4 +1,4 @@
-package restic
+package lock
 
 import (
 	"context"
@@ -11,9 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/restic/restic/internal/errors"
-
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	rid "github.com/restic/restic/internal/id"
+	ros "github.com/restic/restic/internal/os"
+	"github.com/restic/restic/internal/repository"
+	"github.com/restic/restic/internal/restic"
 )
 
 // Lock represents a process locking the repository for an operation.
@@ -33,8 +37,10 @@ type Lock struct {
 	UID       uint32    `json:"uid,omitempty"`
 	GID       uint32    `json:"gid,omitempty"`
 
-	repo   Repository
-	lockID *ID
+	Feedback chan string
+
+	repo   restic.Repository
+	lockID *rid.ID
 }
 
 // ErrAlreadyLocked is returned when NewLock or NewExclusiveLock are unable to
@@ -63,14 +69,14 @@ func IsAlreadyLocked(err error) bool {
 // NewLock returns a new, non-exclusive lock for the repository. If an
 // exclusive lock is already held by another process, ErrAlreadyLocked is
 // returned.
-func NewLock(ctx context.Context, repo Repository) (*Lock, error) {
+func NewLock(ctx context.Context, repo restic.Repository) (*Lock, error) {
 	return newLock(ctx, repo, false)
 }
 
 // NewExclusiveLock returns a new, exclusive lock for the repository. If
 // another lock (normal and exclusive) is already held by another process,
 // ErrAlreadyLocked is returned.
-func NewExclusiveLock(ctx context.Context, repo Repository) (*Lock, error) {
+func NewExclusiveLock(ctx context.Context, repo restic.Repository) (*Lock, error) {
 	return newLock(ctx, repo, true)
 }
 
@@ -82,7 +88,7 @@ func TestSetLockTimeout(t testing.TB, d time.Duration) {
 	waitBeforeLockCheck = d
 }
 
-func newLock(ctx context.Context, repo Repository, excl bool) (*Lock, error) {
+func newLock(ctx context.Context, repo restic.Repository, excl bool) (*Lock, error) {
 	lock := &Lock{
 		Time:      time.Now(),
 		PID:       os.Getpid(),
@@ -127,7 +133,7 @@ func (l *Lock) fillUserInfo() error {
 	}
 	l.Username = usr.Username
 
-	l.UID, l.GID, err = uidGidInt(*usr)
+	l.UID, l.GID, err = ros.UidGidInt(*usr)
 	return err
 }
 
@@ -138,7 +144,7 @@ func (l *Lock) fillUserInfo() error {
 // non-exclusive lock is to be created, an error is only returned when an
 // exclusive lock is found.
 func (l *Lock) checkForOtherLocks(ctx context.Context) error {
-	return l.repo.List(ctx, LockFile, func(id ID, size int64) error {
+	return l.repo.List(ctx, file.LockFile, func(id rid.ID, size int64) error {
 		if l.lockID != nil && id.Equal(*l.lockID) {
 			return nil
 		}
@@ -163,10 +169,10 @@ func (l *Lock) checkForOtherLocks(ctx context.Context) error {
 }
 
 // createLock acquires the lock by creating a file in the repository.
-func (l *Lock) createLock(ctx context.Context) (ID, error) {
-	id, err := l.repo.SaveJSONUnpacked(ctx, LockFile, l)
+func (l *Lock) createLock(ctx context.Context) (rid.ID, error) {
+	id, err := l.repo.SaveJSONUnpacked(ctx,  file.LockFile, l)
 	if err != nil {
-		return ID{}, err
+		return rid.ID{}, err
 	}
 
 	return id, nil
@@ -178,7 +184,7 @@ func (l *Lock) Unlock() error {
 		return nil
 	}
 
-	return l.repo.Backend().Remove(context.TODO(), Handle{Type: LockFile, Name: l.lockID.String()})
+	return l.repo.Backend().Remove(context.TODO(), file.Handle{Type:  file.LockFile, Name: l.lockID.String()})
 }
 
 var staleTimeout = 30 * time.Minute
@@ -227,7 +233,7 @@ func (l *Lock) Refresh(ctx context.Context) error {
 		return err
 	}
 
-	err = l.repo.Backend().Remove(context.TODO(), Handle{Type: LockFile, Name: l.lockID.String()})
+	err = l.repo.Backend().Remove(context.TODO(), file.Handle{Type:  file.LockFile, Name: l.lockID.String()})
 	if err != nil {
 		return err
 	}
@@ -263,9 +269,9 @@ func init() {
 }
 
 // LoadLock loads and unserializes a lock from a repository.
-func LoadLock(ctx context.Context, repo Repository, id ID) (*Lock, error) {
+func LoadLock(ctx context.Context, repo restic.Repository, id rid.ID) (*Lock, error) {
 	lock := &Lock{}
-	if err := repo.LoadJSONUnpacked(ctx, LockFile, id, lock); err != nil {
+	if err := repo.LoadJSONUnpacked(ctx,  file.LockFile, id, lock); err != nil {
 		return nil, err
 	}
 	lock.lockID = &id
@@ -274,8 +280,8 @@ func LoadLock(ctx context.Context, repo Repository, id ID) (*Lock, error) {
 }
 
 // RemoveStaleLocks deletes all locks detected as stale from the repository.
-func RemoveStaleLocks(ctx context.Context, repo Repository) error {
-	return repo.List(ctx, LockFile, func(id ID, size int64) error {
+func RemoveStaleLocks(ctx context.Context, repo restic.Repository) error {
+	return repo.List(ctx,  file.LockFile, func(id rid.ID, size int64) error {
 		lock, err := LoadLock(ctx, repo, id)
 		if err != nil {
 			// ignore locks that cannot be loaded
@@ -284,7 +290,7 @@ func RemoveStaleLocks(ctx context.Context, repo Repository) error {
 		}
 
 		if lock.Stale() {
-			return repo.Backend().Remove(context.TODO(), Handle{Type: LockFile, Name: id.String()})
+			return repo.Backend().Remove(context.TODO(), file.Handle{Type:  file.LockFile, Name: id.String()})
 		}
 
 		return nil
@@ -292,8 +298,123 @@ func RemoveStaleLocks(ctx context.Context, repo Repository) error {
 }
 
 // RemoveAllLocks removes all locks forcefully.
-func RemoveAllLocks(ctx context.Context, repo Repository) error {
-	return repo.List(ctx, LockFile, func(id ID, size int64) error {
-		return repo.Backend().Remove(context.TODO(), Handle{Type: LockFile, Name: id.String()})
+func RemoveAllLocks(ctx context.Context, repo restic.Repository) error {
+	return repo.List(ctx,  file.LockFile, func(id rid.ID, size int64) error {
+		return repo.Backend().Remove(context.TODO(), file.Handle{Type:  file.LockFile, Name: id.String()})
 	})
+}
+
+var globalLocks struct {
+	locks         []*Lock
+	cancelRefresh chan struct{}
+	refreshWG     sync.WaitGroup
+	sync.Mutex
+}
+
+func LockRepo(repo *repository.Repository) (*Lock, error) {
+	return lockRepository(repo, false)
+}
+
+func LockRepoExclusive(repo *repository.Repository) (*Lock, error) {
+	return lockRepository(repo, true)
+}
+
+func lockRepository(repo *repository.Repository, exclusive bool) (*Lock, error) {
+	lockFn := NewLock
+	if exclusive {
+		lockFn = NewExclusiveLock
+	}
+
+	lock, err := lockFn(context.TODO(), repo)
+	if err != nil {
+		return nil, errors.WithMessage(err, "unable to create lock in backend")
+	}
+	debug.Log("create lock %p (exclusive %v)", lock, exclusive)
+
+	globalLocks.Lock()
+	if globalLocks.cancelRefresh == nil {
+		debug.Log("start goroutine for lock refresh")
+		globalLocks.cancelRefresh = make(chan struct{})
+		globalLocks.refreshWG = sync.WaitGroup{}
+		globalLocks.refreshWG.Add(1)
+		go refreshLocks(&globalLocks.refreshWG, globalLocks.cancelRefresh)
+	}
+
+	globalLocks.locks = append(globalLocks.locks, lock)
+	globalLocks.Unlock()
+
+	return lock, err
+}
+
+var refreshInterval = 5 * time.Minute
+
+func refreshLocks(wg *sync.WaitGroup, done <-chan struct{}) {
+	debug.Log("start")
+	defer func() {
+		wg.Done()
+		globalLocks.Lock()
+		globalLocks.cancelRefresh = nil
+		globalLocks.Unlock()
+	}()
+
+	ticker := time.NewTicker(refreshInterval)
+
+	for {
+		select {
+		case <-done:
+			debug.Log("terminate")
+			return
+		case <-ticker.C:
+			debug.Log("refreshing locks")
+			globalLocks.Lock()
+			for _, lock := range globalLocks.locks {
+				err := lock.Refresh(context.TODO())
+				if err != nil {
+					lock.Feedback <- fmt.Sprintf("unable to refresh lock: %v\n", err)
+				}
+			}
+			globalLocks.Unlock()
+		}
+	}
+}
+
+func UnlockRepo(lock *Lock) error {
+	globalLocks.Lock()
+	defer globalLocks.Unlock()
+
+	for i := 0; i < len(globalLocks.locks); i++ {
+		if lock == globalLocks.locks[i] {
+			// remove the lock from the repo
+			debug.Log("unlocking repository with lock %v", lock)
+			if err := lock.Unlock(); err != nil {
+				debug.Log("error while unlocking: %v", err)
+				return err
+			}
+
+			// remove the lock from the list of locks
+			globalLocks.locks = append(globalLocks.locks[:i], globalLocks.locks[i+1:]...)
+			return nil
+		}
+	}
+
+	debug.Log("unable to find lock %v in the global list of locks, ignoring", lock)
+
+	return nil
+}
+
+func UnlockAll() error {
+	globalLocks.Lock()
+	defer globalLocks.Unlock()
+
+	debug.Log("unlocking %d locks", len(globalLocks.locks))
+	for _, lock := range globalLocks.locks {
+		if err := lock.Unlock(); err != nil {
+			debug.Log("error while unlocking: %v", err)
+			return err
+		}
+		debug.Log("successfully removed lock")
+	}
+	globalLocks.locks = globalLocks.locks[:0]
+
+	return nil
 }

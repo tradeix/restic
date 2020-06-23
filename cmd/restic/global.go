@@ -25,6 +25,7 @@ import (
 	"github.com/restic/restic/internal/backend/swift"
 	"github.com/restic/restic/internal/cache"
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/limiter"
 	"github.com/restic/restic/internal/options"
@@ -678,7 +679,7 @@ func open(s string, gopts GlobalOptions, opts options.Options) (restic.Backend, 
 	}
 
 	// check if config is there
-	fi, err := be.Stat(globalOptions.ctx, restic.Handle{Type: restic.ConfigFile})
+	fi, err := be.Stat(globalOptions.ctx, file.Handle{Type: file.ConfigFile})
 	if err != nil {
 		return nil, errors.Fatalf("unable to open config file: %v\nIs there a repository at the following location?\n%v", err, s)
 	}

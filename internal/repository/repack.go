@@ -7,7 +7,9 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
 	"github.com/restic/restic/internal/fs"
+	rid "github.com/restic/restic/internal/id"
 	"github.com/restic/restic/internal/pack"
 	"github.com/restic/restic/internal/restic"
 )
@@ -16,12 +18,12 @@ import (
 // these packs. Each pack is loaded and the blobs listed in keepBlobs is saved
 // into a new pack. Returned is the list of obsolete packs which can then
 // be removed.
-func Repack(ctx context.Context, repo restic.Repository, packs restic.IDSet, keepBlobs restic.BlobSet, p *restic.Progress) (obsoletePacks restic.IDSet, err error) {
+func Repack(ctx context.Context, repo restic.Repository, packs rid.IDSet, keepBlobs restic.BlobSet, p *restic.Progress) (obsoletePacks rid.IDSet, err error) {
 	debug.Log("repacking %d packs while keeping %d blobs", len(packs), len(keepBlobs))
 
 	for packID := range packs {
 		// load the complete pack into a temp file
-		h := restic.Handle{Type: restic.DataFile, Name: packID.String()}
+		h := file.Handle{Type: file.DataFile, Name: packID.String()}
 
 		tempfile, hash, packLength, err := DownloadAndHash(ctx, repo.Backend(), h)
 		if err != nil {
@@ -76,7 +78,7 @@ func Repack(ctx context.Context, repo restic.Repository, packs restic.IDSet, kee
 				return nil, err
 			}
 
-			id := restic.Hash(plaintext)
+			id := rid.Hash(plaintext)
 			if !id.Equal(entry.ID) {
 				debug.Log("read blob %v/%v from %v: wrong data returned, hash is %v",
 					h.Type, h.ID, tempfile.Name(), id)

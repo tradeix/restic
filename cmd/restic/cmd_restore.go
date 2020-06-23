@@ -6,6 +6,8 @@ import (
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/filter"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/restorer"
 
@@ -102,8 +104,8 @@ func runRestore(opts RestoreOptions, gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}
@@ -114,7 +116,7 @@ func runRestore(opts RestoreOptions, gopts GlobalOptions, args []string) error {
 		return err
 	}
 
-	var id restic.ID
+	var id rid.ID
 
 	if snapshotIDString == "latest" {
 		id, err = restic.FindLatestSnapshot(ctx, repo, opts.Paths, opts.Tags, opts.Hosts)

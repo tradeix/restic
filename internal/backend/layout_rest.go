@@ -1,6 +1,8 @@
 package backend
 
-import "github.com/restic/restic/internal/restic"
+import (
+	"github.com/restic/restic/internal/file"
+)
 
 // RESTLayout implements the default layout for the REST protocol.
 type RESTLayout struct {
@@ -21,8 +23,8 @@ func (l *RESTLayout) Name() string {
 }
 
 // Dirname returns the directory path for a given file type and name.
-func (l *RESTLayout) Dirname(h restic.Handle) string {
-	if h.Type == restic.ConfigFile {
+func (l *RESTLayout) Dirname(h file.Handle) string {
+	if h.Type == file.ConfigFile {
 		return l.URL + l.Join(l.Path, "/")
 	}
 
@@ -30,10 +32,10 @@ func (l *RESTLayout) Dirname(h restic.Handle) string {
 }
 
 // Filename returns a path to a file, including its name.
-func (l *RESTLayout) Filename(h restic.Handle) string {
+func (l *RESTLayout) Filename(h file.Handle) string {
 	name := h.Name
 
-	if h.Type == restic.ConfigFile {
+	if h.Type == file.ConfigFile {
 		name = "config"
 	}
 
@@ -49,6 +51,6 @@ func (l *RESTLayout) Paths() (dirs []string) {
 }
 
 // Basedir returns the base dir name for files of type t.
-func (l *RESTLayout) Basedir(t restic.FileType) (dirname string, subdirs bool) {
+func (l *RESTLayout) Basedir(t file.FileType) (dirname string, subdirs bool) {
 	return l.URL + l.Join(l.Path, restLayoutPaths[t]), false
 }

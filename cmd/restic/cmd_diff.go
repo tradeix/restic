@@ -8,6 +8,8 @@ import (
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
+	rid "github.com/restic/restic/internal/id"
+	"github.com/restic/restic/internal/lock"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	"github.com/spf13/cobra"
@@ -150,7 +152,7 @@ func updateBlobs(repo restic.Repository, blobs restic.BlobSet, stats *DiffStat) 
 	}
 }
 
-func (c *Comparer) printDir(ctx context.Context, mode string, stats *DiffStat, blobs restic.BlobSet, prefix string, id restic.ID) error {
+func (c *Comparer) printDir(ctx context.Context, mode string, stats *DiffStat, blobs restic.BlobSet, prefix string, id rid.ID) error {
 	debug.Log("print %v tree %v", mode, id)
 	tree, err := c.repo.LoadTree(ctx, id)
 	if err != nil {
@@ -200,7 +202,7 @@ func uniqueNodeNames(tree1, tree2 *restic.Tree) (tree1Nodes, tree2Nodes map[stri
 	return tree1Nodes, tree2Nodes, uniqueNames
 }
 
-func (c *Comparer) diffTree(ctx context.Context, stats *DiffStats, prefix string, id1, id2 restic.ID) error {
+func (c *Comparer) diffTree(ctx context.Context, stats *DiffStats, prefix string, id1, id2 rid.ID) error {
 	debug.Log("diffing %v to %v", id1, id2)
 	tree1, err := c.repo.LoadTree(ctx, id1)
 	if err != nil {
@@ -305,8 +307,8 @@ func runDiff(opts DiffOptions, gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		lock, err := lockRepo(repo)
-		defer unlockRepo(lock)
+		lck, err := lock.LockRepo(repo)
+		defer lock.UnlockRepo(lck)
 		if err != nil {
 			return err
 		}

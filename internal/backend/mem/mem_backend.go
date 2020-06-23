@@ -8,13 +8,13 @@ import (
 	"sync"
 
 	"github.com/restic/restic/internal/backend"
-	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
-
 	"github.com/restic/restic/internal/debug"
+	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/file"
+	"github.com/restic/restic/internal/restic"
 )
 
-type memMap map[restic.Handle][]byte
+type memMap map[file.Handle][]byte
 
 // make sure that MemoryBackend implements backend.Backend
 var _ restic.Backend = &MemoryBackend{}
@@ -40,7 +40,7 @@ func New() *MemoryBackend {
 }
 
 // Test returns whether a file exists.
-func (be *MemoryBackend) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (be *MemoryBackend) Test(ctx context.Context, h file.Handle) (bool, error) {
 	be.m.Lock()
 	defer be.m.Unlock()
 
@@ -59,7 +59,7 @@ func (be *MemoryBackend) IsNotExist(err error) bool {
 }
 
 // Save adds new Data to the backend.
-func (be *MemoryBackend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (be *MemoryBackend) Save(ctx context.Context, h file.Handle, rd restic.RewindReader) error {
 	if err := h.Valid(); err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (be *MemoryBackend) Save(ctx context.Context, h restic.Handle, rd restic.Re
 	be.m.Lock()
 	defer be.m.Unlock()
 
-	if h.Type == restic.ConfigFile {
+	if h.Type == file.ConfigFile {
 		h.Name = ""
 	}
 
@@ -88,11 +88,11 @@ func (be *MemoryBackend) Save(ctx context.Context, h restic.Handle, rd restic.Re
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (be *MemoryBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be *MemoryBackend) Load(ctx context.Context, h file.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
 }
 
-func (be *MemoryBackend) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (be *MemoryBackend) openReader(ctx context.Context, h file.Handle, length int, offset int64) (io.ReadCloser, error) {
 	if err := h.Valid(); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (be *MemoryBackend) openReader(ctx context.Context, h restic.Handle, length
 	be.m.Lock()
 	defer be.m.Unlock()
 
-	if h.Type == restic.ConfigFile {
+	if h.Type == file.ConfigFile {
 		h.Name = ""
 	}
 
@@ -128,7 +128,7 @@ func (be *MemoryBackend) openReader(ctx context.Context, h restic.Handle, length
 }
 
 // Stat returns information about a file in the backend.
-func (be *MemoryBackend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, error) {
+func (be *MemoryBackend) Stat(ctx context.Context, h file.Handle) (restic.FileInfo, error) {
 	be.m.Lock()
 	defer be.m.Unlock()
 
@@ -136,7 +136,7 @@ func (be *MemoryBackend) Stat(ctx context.Context, h restic.Handle) (restic.File
 		return restic.FileInfo{}, err
 	}
 
-	if h.Type == restic.ConfigFile {
+	if h.Type == file.ConfigFile {
 		h.Name = ""
 	}
 
@@ -151,7 +151,7 @@ func (be *MemoryBackend) Stat(ctx context.Context, h restic.Handle) (restic.File
 }
 
 // Remove deletes a file from the backend.
-func (be *MemoryBackend) Remove(ctx context.Context, h restic.Handle) error {
+func (be *MemoryBackend) Remove(ctx context.Context, h file.Handle) error {
 	be.m.Lock()
 	defer be.m.Unlock()
 
@@ -167,7 +167,7 @@ func (be *MemoryBackend) Remove(ctx context.Context, h restic.Handle) error {
 }
 
 // List returns a channel which yields entries from the backend.
-func (be *MemoryBackend) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
+func (be *MemoryBackend) List(ctx context.Context, t file.FileType, fn func(restic.FileInfo) error) error {
 	entries := make(map[string]int64)
 
 	be.m.Lock()
